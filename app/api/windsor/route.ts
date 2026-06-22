@@ -69,8 +69,8 @@ export async function GET(req: NextRequest) {
       windsor(apiKey, "country,clicks,impressions,ctr", { date_from: dateFrom, date_to: dateTo, ...siteExtra }),
     ]);
 
-    const gscCurr = { clicks: sumF(gscAll,"clicks"), impressions: sumF(gscAll,"impressions"), ctr: avgF(gscAll,"ctr"), position: avgF(gscAll,"position") };
-    const gscPrevS = { clicks: sumF(gscPrev,"clicks"), impressions: sumF(gscPrev,"impressions"), ctr: avgF(gscPrev,"ctr"), position: avgF(gscPrev,"position") };
+    const gscCurr = { clicks: sumF(gscAll,"clicks"), impressions: sumF(gscAll,"impressions"), ctr: sumF(gscAll,"clicks") / (sumF(gscAll,"impressions") || 1) * 100, position: avgF(gscAll,"position") };
+const gscPrevS = { clicks: sumF(gscPrev,"clicks"), impressions: sumF(gscPrev,"impressions"), ctr: sumF(gscPrev,"clicks") / (sumF(gscPrev,"impressions") || 1) * 100, position: avgF(gscPrev,"position") };
     const topQueries = agg(gscByQuery, r => r.query, ["clicks","impressions","ctr","position"]).map((r: any) => ({ query: r._key, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position })).sort((a: any, b: any) => b.clicks - a.clicks).slice(0, 15);
     const topPages = agg(gscByPage, r => r.page, ["clicks","impressions","ctr","position"]).map((r: any) => ({ page: r._key, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position })).sort((a: any, b: any) => b.clicks - a.clicks).slice(0, 15);
     const trendMap: Record<string, any> = {};
