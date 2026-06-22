@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, RefreshCw, Key, AlertCircle, ChevronRight, X, ChevronDown, Calendar, LogOut, Lock } from "lucide-react";
+import { TrendingUp, TrendingDown, RefreshCw, Key, AlertCircle, ChevronRight, X, ChevronDown, Calendar, Lock } from "lucide-react";
 
 const TT = { background: "white", border: "1px solid #DDD5C4", borderRadius: 8, fontSize: 12 };
 const PRESETS = [
@@ -20,63 +20,6 @@ function fmtDisplay(s: string) {
 }
 function fNum(n: number) { if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1000) return (n / 1000).toFixed(1) + "K"; return Math.round(n).toString(); }
 function siteName(url: string) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } }
-
-// ── Login Screen ─────────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleLogin() {
-    if (!password.trim()) return;
-    setLoading(true); setError("");
-    try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Incorrect password");
-      localStorage.setItem("advant_auth", "1");
-      onLogin();
-    } catch (e: any) { setError(e.message); }
-    finally { setLoading(false); }
-  }
-
-  return (
-    <div className="setup-screen">
-      <div className="setup-card">
-        <div className="setup-brand">
-          <div className="setup-brand-label">Client Portal</div>
-          <div className="setup-brand-name">Advant SEO</div>
-          <div className="setup-brand-rule" />
-        </div>
-        <div className="setup-title">Internal SEO analytics portal for Advant AI hotel clients.</div>
-        <div className="key-group">
-          <Lock size={14} color="#C9A96E" />
-          <input
-            className="key-input" type="password"
-            placeholder="Enter portal password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleLogin()}
-            autoFocus
-          />
-        </div>
-        <button className="btn-connect" onClick={handleLogin} disabled={!password.trim() || loading}>
-          {loading ? "Verifying..." : "Enter Portal"} {!loading && <ChevronRight size={15} />}
-        </button>
-        {error && (
-          <div style={{ color: "var(--rose)", fontSize: 12, display: "flex", gap: 6, alignItems: "center" }}>
-            <AlertCircle size={12} />{error}
-          </div>
-        )}
-        <p className="setup-note">Contact your Advant administrator for access.</p>
-      </div>
-    </div>
-  );
-}
 
 // ── Date Range Picker ─────────────────────────────────────────────────────────
 function DateRangePicker({ dateFrom, dateTo, onChange }: { dateFrom: string; dateTo: string; onChange: (f: string, t: string) => void }) {
@@ -308,7 +251,7 @@ function DeviceBars({ devices }: { devices: any[] }) {
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const [authed, setAuthed] = useState<boolean | null>(null);
+  const [authed, setAuthed] = useState<boolean>(true);
   const [sites, setSites] = useState<any[]>([]);
   const [sitesLoading, setSitesLoading] = useState(false);
   const [activeUrl, setActiveUrl] = useState("");
@@ -318,14 +261,8 @@ export default function Dashboard() {
   const [dateFrom, setDateFrom] = useState(subtractDays(28));
   const [dateTo, setDateTo] = useState(toDateStr(new Date()));
 
-  // Check auth on mount
-  useEffect(() => {
-    const auth = localStorage.getItem("advant_auth");
-    setAuthed(auth === "1");
-  }, []);
 
-  function handleLogin() { setAuthed(true); }
-  function handleLogout() { localStorage.removeItem("advant_auth"); setAuthed(false); setData(null); setSites([]); setActiveUrl(""); }
+
 
   // Load sites once authed
   const loadSites = useCallback(async () => {
@@ -367,12 +304,6 @@ export default function Dashboard() {
     fetchData(url, dateFrom, dateTo);
   }
 
-  // Loading auth check
-  if (authed === null) return <div style={{ minHeight: "100vh", background: "#1C1C1C" }} />;
-
-  // Login screen
-  if (!authed) return <LoginScreen onLogin={handleLogin} />;
-
   const s = data?.summary;
   const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
@@ -407,9 +338,7 @@ export default function Dashboard() {
 
         <div className="sidebar-footer">
           <div className="sidebar-footer-label">Advant AI · SEO Portal</div>
-          <button className="key-btn" onClick={handleLogout}>
-            <LogOut size={11} /> Sign Out
-          </button>
+
         </div>
       </aside>
 
