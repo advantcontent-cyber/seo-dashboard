@@ -74,19 +74,18 @@ const gscPrevS = { clicks: sumF(gscPrev,"clicks"), impressions: sumF(gscPrev,"im
     const topQueries = agg(gscByQuery, r => r.query, ["clicks","impressions","ctr","position"]).map((r: any) => ({ query: r._key, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position })).sort((a: any, b: any) => b.clicks - a.clicks).slice(0, 15);
     const topPages = agg(gscByPage, r => r.page, ["clicks","impressions","ctr","position"]).map((r: any) => ({ page: r._key, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position })).sort((a: any, b: any) => b.clicks - a.clicks).slice(0, 15);
     const trendMap: Record<string, any> = {};
-    for (const r of gscByDate) {
-      const d = r.date; if (!d) continue;
-      if (!trendMap[d]) trendMap[d] = { date: d, clicks: 0, impressions: 0, ctrs: [], positions: [] };
-      trendMap[d].clicks += parseFloat(r.clicks) || 0;
-      trendMap[d].impressions += parseFloat(r.impressions) || 0;
-      trendMap[d].ctrs.push(parseFloat(r.ctr) || 0);
-      trendMap[d].positions.push(parseFloat(r.position) || 0);
-    }
-    const trend = Object.values(trendMap).map((d: any) => ({
-      date: d.date.slice(5), clicks: Math.round(d.clicks), impressions: Math.round(d.impressions),
-      ctr: d.ctrs.length ? Math.round(d.ctrs.reduce((a: number, b: number) => a + b, 0) / d.ctrs.length * 10) / 10 : 0,
-      position: d.positions.length ? Math.round(d.positions.reduce((a: number, b: number) => a + b, 0) / d.positions.length * 10) / 10 : 0,
-    })).sort((a: any, b: any) => a.date.localeCompare(b.date));
+for (const r of gscByDate) {
+  const d = r.date; if (!d) continue;
+  if (!trendMap[d]) trendMap[d] = { date: d, clicks: 0, impressions: 0, positions: [] };
+  trendMap[d].clicks += parseFloat(r.clicks) || 0;
+  trendMap[d].impressions += parseFloat(r.impressions) || 0;
+  trendMap[d].positions.push(parseFloat(r.position) || 0);
+}
+const trend = Object.values(trendMap).map((d: any) => ({
+  date: d.date.slice(5), clicks: Math.round(d.clicks), impressions: Math.round(d.impressions),
+  ctr: d.impressions > 0 ? Math.round((d.clicks / d.impressions) * 1000) / 10 : 0,
+  position: d.positions.length ? Math.round(d.positions.reduce((a: number, b: number) => a + b, 0) / d.positions.length * 10) / 10 : 0,
+})).sort((a: any, b: any) => a.date.localeCompare(b.date));
     const byDevice = agg(gscByDevice, r => r.device || "UNKNOWN", ["clicks","impressions","ctr","position"]).map((r: any) => ({ device: r._key, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position })).sort((a: any, b: any) => b.clicks - a.clicks);
     const byCountry = agg(gscByCountry, r => r.country, ["clicks","impressions","ctr"]).map((r: any) => ({ country: r._key, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr })).sort((a: any, b: any) => b.clicks - a.clicks).slice(0, 10);
 
