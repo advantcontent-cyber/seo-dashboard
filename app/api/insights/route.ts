@@ -1,129 +1,171 @@
-import { NextRequest, NextResponse } from "next/server";
+function AIInsights({ data, clientName }: { data: any; clientName: string }) {
+  const [insights, setInsights] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"insights"|"opportunities"|"actions">("insights");
 
-export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { clientName, summary, topQueries, topPages, byDevice, analysisType } = body;
+  const generate = useCallback(async () => {
+    setLoading(true); setError(null); setInsights(null);
+    try {
+      const res = await fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientName, ...data }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setInsights(json);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [clientName, data?.summary?.clicks]);
 
-  const queryData = (topQueries || []).map((q: any) =>
-    `"${q.query}": ${q.clicks} clicks, ${q.impressions} impressions, CTR ${q.ctr}%, pos #${q.position}`
-  ).join("\n");
+  useEffect(() => { if (data) generate(); }, [clientName, data?.summary?.clicks]);
 
-  const pageData = (topPages || []).map((p: any) =>
-    `${p.page}: ${p.clicks} clicks, ${p.impressions} impressions, CTR ${p.ctr}%, pos #${p.position}`
-  ).join("\n");
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div><div className="card-eyebrow">AI Analysis · 2-Pass Claude Strategy</div><div className="card-title">SEO Intelligence</div></div>
+        <button className="btn-refresh" onClick={generate} disabled={loading} style={{ fontSize: 11, padding: "5px 11px" }}>
+          <RefreshCw size={11} /> Regenerate
+        </button>
+      </div>
 
-  const prompt1 = `You are an expert SEO analyst for Advant AI, a luxury hotel digital marketing agency.
+      {loading && (
+        <div className="ai-loading">
+          <div className="ai-spinner" />
+          Running 2-pass Claude SEO analysis...
+        </div>
+      )}
+      {error && <div style={{ color: "var(--rose)", fontSize: 12 }}>⚠ {error}</div>}
 
-Analyze this Google Search Console data for ${clientName}:
+      {insights && !loading && (
+        <>
+          {insights.headline && <div className="insight-headline">{insights.headline}</div>}
+          {insights.focusStatement && (
+            <div style={{ background: "#1C1C1C", color: "#C9A96E", padding: "12px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500 }}>
+              🎯 {insights.focusStatement}
+            </div>
+          )}
 
-SUMMARY (vs prev period):
-- Clicks: ${summary.clicks} (${summary.change.clicks > 0 ? "+" : ""}${summary.change.clicks}%)
-- Impressions: ${summary.impressions} (${summary.change.impressions > 0 ? "+" : ""}${summary.change.impressions}%)
-- CTR: ${summary.ctr}% (${summary.change.ctr > 0 ? "+" : ""}${summary.change.ctr}%)
-- Avg Position: #${summary.position}
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--cream-border)", paddingBottom: 0 }}>
+            {(["insights","opportunities","actions"] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{
+                padding: "8px 14px", border: "none", background: "none", cursor: "pointer",
+                fontSize: 12, fontWeight: 600, fontFamily: "Inter, sans-serif",
+                color: tab === t ? "var(--text)" : "var(--text-muted)",
+                borderBottom: tab === t ? "2px solid var(--gold)" : "2px solid transparent",
+                textTransform: "capitalize", letterSpacing: "0.02em",
+              }}>{t === "insights" ? "Brightspots & Issues" : t === "opportunities" ? "Quick Wins" : "Action Plan"}</button>
+            ))}
+          </div>
 
-TOP QUERIES:
-${queryData}
+          {/* Insights Tab */}
+          {tab === "insights" && (
+            <div className="insights-grid">
+              {(insights.brightspots || []).map((b: any, i: number) => (
+                <div key={i} className="insight-box bright">
+                  <div className="insight-icon">✦</div>
+                  <div className="insight-title bright">{b.title}</div>
+                  <div className="insight-detail">{b.detail}</div>
+                </div>
+              ))}
+              {(insights.criticalIssues || []).map((c: any, i: number) => (
+                <div key={i} className="insight-box issue">
+                  <div className="insight-icon">▲</div>
+                  <div className="insight-title issue">{c.title}</div>
+                  <div className="insight-detail">{c.detail}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
-TOP PAGES:
-${pageData}
+          {/* Quick Wins Tab */}
+          {tab === "opportunities" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {insights.quickWins?.length > 0 && (
+                <div>
+                  <div className="card-eyebrow" style={{ marginBottom: 10 }}>Quick Wins — Close to Page 1</div>
+                  <div className="table-wrap">
+                    <table className="data-table">
+                      <thead><tr><th>Query</th><th style={{textAlign:"right"}}>Pos</th><th style={{textAlign:"right"}}>Impr.</th><th>Action</th></tr></thead>
+                      <tbody>
+                        {insights.quickWins.map((q: any, i: number) => (
+                          <tr key={i}>
+                            <td><span className="query-text">{q.query}</span></td>
+                            <td style={{textAlign:"right"}}><span className={`pos-tag ${q.position <= 10 ? "pos-mid" : "pos-low"}`}>#{q.position}</span></td>
+                            <td style={{textAlign:"right"}}>{fNum(q.impressions)}</td>
+                            <td style={{fontSize:12,color:"var(--text-muted)"}}>{q.action}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {insights.contentGaps?.length > 0 && (
+                <div>
+                  <div className="card-eyebrow" style={{ marginBottom: 10 }}>Content Gaps — Pages to Create or Update</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {insights.contentGaps.map((g: any, i: number) => (
+                      <div key={i} style={{ display: "flex", gap: 12, padding: "12px", background: "var(--cream)", borderRadius: 8, alignItems: "flex-start" }}>
+                        <span style={{ background: "var(--text)", color: "var(--cream)", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 4, whiteSpace: "nowrap", marginTop: 1 }}>{g.type?.toUpperCase()}</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 3 }}>{g.title}</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{g.rationale}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {insights.missedOpportunities?.length > 0 && (
+                <div>
+                  <div className="card-eyebrow" style={{ marginBottom: 10 }}>Missed Opportunities</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {insights.missedOpportunities.map((m: any, i: number) => (
+                      <div key={i} className="insight-box issue">
+                        <div className="insight-title issue">{m.opportunity}</div>
+                        <div className="insight-detail">{m.recommendation}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
-DEVICE SPLIT:
-${(byDevice || []).map((d: any) => `${d.device}: ${d.clicks} clicks, CTR ${d.ctr}%`).join("\n")}
-
-Analyze this data and:
-1. Identify queries with strong impressions but low rankings (pos #11-30) — quick win opportunities
-2. Highlight queries where ranking is close to page 1 (pos #8-15) — low-hanging fruit
-3. Group queries into topic clusters relevant to luxury hospitality
-4. Identify missed opportunities (high impressions, low CTR or weak page)
-5. Suggest a content strategy (pages to create or update, content type: guide/landing page/blog/comparison)
-6. Focus only on meaningful patterns, ignore random fluctuations
-
-Respond ONLY with a JSON object, no markdown:
-{
-  "quickWins": [
-    {"query": "query text", "position": 12, "impressions": 500, "action": "specific action to take"}
-  ],
-  "clusters": [
-    {"topic": "cluster name", "queries": ["q1", "q2"], "opportunity": "what to do"}
-  ],
-  "contentGaps": [
-    {"title": "page/content to create", "type": "guide|landing|blog|comparison", "rationale": "why this matters"}
-  ],
-  "brightspots": [
-    {"title": "short title", "detail": "one specific insight with data"}
-  ],
-  "criticalIssues": [
-    {"title": "short title", "detail": "one specific issue with data"}
-  ],
-  "headline": "One sentence summary of SEO situation"
-}`;
-
-  const prompt2 = (firstOutput: string) => `Act like an experienced SEO strategist for a luxury hotel brand.
-
-Here is the initial SEO analysis for ${clientName}:
-${firstOutput}
-
-Now challenge these recommendations and:
-1. Identify weak assumptions or gaps in the analysis
-2. Highlight any missed opportunities
-3. Based on these queries, what are top-ranking competitor pages likely doing better?
-4. Re-prioritize for maximum impact
-5. Simplify into a focused, high-ROI action plan
-
-Respond ONLY with a JSON object, no markdown:
-{
-  "actionPlan": [
-    {"priority": 1, "action": "specific executable action", "impact": "high|medium|low", "effort": "high|medium|low", "rationale": "why this over others"}
-  ],
-  "missedOpportunities": [
-    {"opportunity": "what was missed", "recommendation": "what to do instead"}
-  ],
-  "competitorEdge": "What top-ranking pages are likely doing better in one paragraph",
-  "focusStatement": "The single most important thing to do right now in one sentence"
-}`;
-
-  try {
-    // First pass — opportunity analysis
-    const res1 = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt1 }],
-      }),
-    });
-    const data1 = await res1.json();
-    const text1 = data1.content?.[0]?.text || "{}";
-    const clean1 = text1.replace(/```json|```/g, "").trim();
-    const parsed1 = JSON.parse(clean1);
-
-    // Second pass — strategic refinement
-    const res2 = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt2(JSON.stringify(parsed1)) }],
-      }),
-    });
-    const data2 = await res2.json();
-    const text2 = data2.content?.[0]?.text || "{}";
-    const clean2 = text2.replace(/```json|```/g, "").trim();
-    const parsed2 = JSON.parse(clean2);
-
-    return NextResponse.json({ ...parsed1, ...parsed2 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
+          {/* Action Plan Tab */}
+          {tab === "actions" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {insights.competitorEdge && (
+                <div style={{ padding: "14px 16px", background: "var(--cream)", borderRadius: 8, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, borderLeft: "3px solid var(--gold)" }}>
+                  <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>What Competitors Are Doing Better</div>
+                  {insights.competitorEdge}
+                </div>
+              )}
+              <div className="card-eyebrow" style={{ marginBottom: 4 }}>Prioritised Action Plan</div>
+              {(insights.actionPlan || []).map((a: any, i: number) => (
+                <div key={i} style={{ display: "flex", gap: 12, padding: "14px", background: "var(--cream)", borderRadius: 10, alignItems: "flex-start" }}>
+                  <div style={{ minWidth: 24, height: 24, background: "var(--text)", color: "var(--cream)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, marginTop: 1 }}>{a.priority}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>{a.action}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>{a.rationale}</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: a.impact === "high" ? "#E8F5F0" : a.impact === "medium" ? "#FEF3E2" : "#F5F5F5", color: a.impact === "high" ? "var(--teal)" : a.impact === "medium" ? "#B07C20" : "var(--text-muted)" }}>
+                        {a.impact?.toUpperCase()} IMPACT
+                      </span>
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#F5F5F5", color: "var(--text-muted)" }}>
+                        {a.effort?.toUpperCase()} EFFORT
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
