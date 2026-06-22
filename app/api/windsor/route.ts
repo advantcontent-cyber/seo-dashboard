@@ -41,7 +41,7 @@ function agg(arr: any[], keyFn: (r: any) => string, fields: string[]) {
 }
 
 export async function GET(req: NextRequest) {
-  const apiKey = process.env.WINDSOR_API_KEY;
+  const apiKey = process.env.WINDSOR_API_KEY || "b4b2b8120b1e45cf203b6ef7ebb6278a6b11";
   if (!apiKey) return NextResponse.json({ error: "WINDSOR_API_KEY not configured" }, { status: 500 });
 
   const { searchParams } = new URL(req.url);
