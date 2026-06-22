@@ -12,9 +12,10 @@ function daysBetween(from: string, to: string): number {
   return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000);
 }
 
-async function windsor(apiKey: string, fields: string, extra: Record<string, string> = {}) {
+async function windsor(apiKey: string, fields: string, extra: Record<string, string> = {}, filter?: string) {
   const params = new URLSearchParams({ api_key: apiKey, fields, ...extra });
-  const url = `${BASE}/searchconsole?${params}`;
+  let url = `${BASE}/searchconsole?${params}`;
+  if (filter) url += `&filter=${filter}`;
   const res = await fetch(url, { next: { revalidate: 300 } });
   if (!res.ok) {
     const text = await res.text();
@@ -67,18 +68,21 @@ export async function GET(req: NextRequest) {
 
   if (!apiKey) return NextResponse.json({ error: "No Windsor API key provided" }, { status: 401 });
 
-  // Windsor GSC: filter by site using _filter parameter
-  const siteExtra: Record<string, string> = site ? { _filter: `site==${site}` } : {};
+  // Windsor uses JSON array filter syntax: [["field","operator","value"]]
+  const siteFilter = site
+    ? encodeURIComponent(JSON.stringify([["site", "eq", site]]))
+    : undefined;
+  const siteExtra: Record<string, string> = {};
 
   try {
     const [gscAll, gscPrev, gscByQuery, gscByPage, gscByDate, gscByDevice, gscByCountry] = await Promise.all([
-      windsor(apiKey, "clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo, ...siteExtra }),
-      windsor(apiKey, "clicks,impressions,ctr,position", { date_from: prevDateFrom, date_to: prevDateTo, ...siteExtra }),
-      windsor(apiKey, "query,clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo, ...siteExtra }),
-      windsor(apiKey, "page,clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo, ...siteExtra }),
-      windsor(apiKey, "date,clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo, ...siteExtra }),
-      windsor(apiKey, "device,clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo, ...siteExtra }),
-      windsor(apiKey, "country,clicks,impressions,ctr", { date_from: dateFrom, date_to: dateTo, ...siteExtra }),
+      windsor(apiKey, "clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo }, siteFilter),
+      windsor(apiKey, "clicks,impressions,ctr,position", { date_from: prevDateFrom, date_to: prevDateTo }, siteFilter),
+      windsor(apiKey, "query,clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo }, siteFilter),
+      windsor(apiKey, "page,clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo }, siteFilter),
+      windsor(apiKey, "date,clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo }, siteFilter),
+      windsor(apiKey, "device,clicks,impressions,ctr,position", { date_from: dateFrom, date_to: dateTo }, siteFilter),
+      windsor(apiKey, "country,clicks,impressions,ctr", { date_from: dateFrom, date_to: dateTo }, siteFilter),
     ]);
 
     const gscCurr = { clicks: sumF(gscAll,"clicks"), impressions: sumF(gscAll,"impressions"), ctr: avgF(gscAll,"ctr"), position: avgF(gscAll,"position") };
