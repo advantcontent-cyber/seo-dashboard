@@ -5,7 +5,10 @@ export async function GET() {
   if (!apiKey) return NextResponse.json({ error: "WINDSOR_API_KEY not configured" }, { status: 500 });
   try {
     const today = new Date().toISOString().split("T")[0];
-    const params = new URLSearchParams({ api_key: apiKey, fields: "site,clicks", date_from: "2025-01-01", date_to: today });
+    const sixMonthsAgo = new Date();
+sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+const dateFrom = sixMonthsAgo.toISOString().split("T")[0];
+const params = new URLSearchParams({ api_key: apiKey, fields: "site,clicks", date_from: dateFrom, date_to: today });
     const res = await fetch("https://connectors.windsor.ai/searchconsole?" + params, { next: { revalidate: 3600 } });
     if (!res.ok) { const t = await res.text(); throw new Error("Windsor error " + res.status + ": " + t.slice(0, 200)); }
     const json = await res.json();
