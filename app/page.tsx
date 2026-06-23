@@ -115,7 +115,7 @@ function ClientDropdown({ sites, activeUrl, onChange }: { sites: any[]; activeUr
 }
 
 // ── Period Summary ───────────────────────────────────────────────────────────
-function PeriodSummary({ data, clientName }: { data: any; clientName: string }) {
+function PeriodSummary({ data, ga4Data, clientName, siteUrl }: { data: any; ga4Data: any; clientName: string; siteUrl: string }) {
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,14 +127,20 @@ function PeriodSummary({ data, clientName }: { data: any; clientName: string }) 
       const res = await fetch("/api/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientName, ...data }),
+        body: JSON.stringify({
+          clientName,
+          dateFrom: data.dateFrom,
+          dateTo: data.dateTo,
+          gsc: data,
+          ga4: ga4Data,
+        }),
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setSummary(json);
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
-  }, [clientName, data?.summary?.clicks]);
+  }, [clientName, data?.summary?.clicks, ga4Data?.summary?.sessions]);
 
   useEffect(() => { if (data) generate(); }, [clientName, data?.summary?.clicks]);
 
@@ -323,8 +329,9 @@ function AIActionTable({ data, clientName }: { data: any; clientName: string }) 
 }
 
 // ── GA4 Section ───────────────────────────────────────────────────────────────
-function GA4Section({ siteUrl, dateFrom, dateTo }: { siteUrl: string; dateFrom: string; dateTo: string }) {
+function GA4Section({ siteUrl, dateFrom, dateTo, onData }: { siteUrl: string; dateFrom: string; dateTo: string; onData?: (d: any) => void }) {
   const [data, setData] = useState<any>(null);
+  const [ga4Data, setGa4Data] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -337,6 +344,7 @@ function GA4Section({ siteUrl, dateFrom, dateTo }: { siteUrl: string; dateFrom: 
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setData(json);
+      onData?.(json);
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   }, [siteUrl, dateFrom, dateTo]);
@@ -586,6 +594,7 @@ export default function Dashboard() {
   const [sitesLoading, setSitesLoading] = useState(false);
   const [activeUrl, setActiveUrl] = useState("");
   const [data, setData] = useState<any>(null);
+  const [ga4Data, setGa4Data] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState(subtractDays(28));
@@ -708,7 +717,7 @@ export default function Dashboard() {
 
         {s && !loading && (
           <div className="content">
-            <PeriodSummary data={data} clientName={siteName(activeUrl)} />
+            <PeriodSummary data={data} ga4Data={ga4Data} clientName={siteName(activeUrl)} siteUrl={activeUrl} />
 
             <div className="kpi-grid">
               <KpiCard label="Organic Clicks" value={fNum(s.clicks)} change={s.change.clicks} />
@@ -824,7 +833,7 @@ export default function Dashboard() {
 
             {/* GA4 divider */}
             <div style={{borderTop:"2px solid var(--cream-border)", paddingTop:8}}>
-              <GA4Section siteUrl={activeUrl} dateFrom={dateFrom} dateTo={dateTo} />
+              <GA4Section siteUrl={activeUrl} dateFrom={dateFrom} dateTo={dateTo} onData={setGa4Data} />
             </div>
 
             <div style={{textAlign:"center",color:"var(--text-dim)",fontSize:11,paddingBottom:8}}>
