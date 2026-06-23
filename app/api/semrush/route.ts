@@ -1,119 +1,77 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const CAMPAIGNS: Record<string, { projectId: string; campaignId: string; name: string; hasTracking: boolean }> = {
-  "https://www.sorahotels.com/sorasukhumvit/": { projectId: "28548179", campaignId: "28548179_5012473", name: "Sora Hotels Sukhumvit", hasTracking: true },
-  "https://www.sorahotels.com/": { projectId: "28548179", campaignId: "28548179_5012473", name: "Sora Hotels", hasTracking: true },
-  "https://www.sorahotels.com": { projectId: "28548179", campaignId: "28548179_5012473", name: "Sora Hotels", hasTracking: true },
-  "https://khao-yai.intercontinental.com/": { projectId: "28547626", campaignId: "", name: "IC Khao Yai", hasTracking: false },
-  "https://khao-yai.intercontinental.com": { projectId: "28547626", campaignId: "", name: "IC Khao Yai", hasTracking: false },
-};
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { clientName, topQueries, topPages } = body;
 
-async function fetchTracking(projectId: string, params: Record<string, string>) {
-  const apiKey = process.env.SEMRUSH_API_KEY;
-  if (!apiKey) throw new Error("SEMRUSH_API_KEY not configured");
+  const queryData = (topQueries || []).map((q: any) =>
+    `"${q.query}": ${q.clicks} clicks, ${q.impressions} impressions, CTR ${q.ctr}%, pos #${q.position}`
+  ).join("\n");
 
-  // Build query string manually preserving empty competitors[]
-  const parts: string[] = [
-    `key=${apiKey}`,
-    `action=report`,
-    `competitors%5B%5D=`,  // competitors[] URL encoded
-  ];
-  for (const [k, v] of Object.entries(params)) {
-    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
-  }
-  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/?${parts.join("&")}`;
-  const res = await fetch(url, { next: { revalidate: 3600 } });
+  const prompt = `You are an expert SEO and GEO (Generative Engine Optimization) analyst for Advant AI, a luxury hotel digital marketing agency.
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`SEMrush error ${res.status}: ${text.slice(0, 300)}`);
-  }
+Analyze this Google Search Console keyword data for ${clientName} and predict AI Overview (AIO) presence and opportunities.
 
-  const text = await res.text();
-  const lines = text.trim().split("\n");
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(";").map(h => h.trim().replace(/"/g, ""));
-  return lines.slice(1).map(line => {
-    const vals = line.split(";").map(v => v.trim().replace(/"/g, ""));
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i] || ""]));
-  });
-}
+CONTEXT: Google's AI Overviews appear for ~15% of searches, mostly informational, question-based, and research queries. Hotels see AIO on destination, amenity, comparison, and "best X" queries.
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const siteUrl = searchParams.get("site") || "";
-  // Normalize URL for lookup — try exact, then with/without trailing slash
-  const normalizedUrl = siteUrl.endsWith("/") ? siteUrl : siteUrl + "/";
-  const campaign = CAMPAIGNS[siteUrl] || CAMPAIGNS[normalizedUrl] || CAMPAIGNS[siteUrl.replace(/\/$/, "")];
+TOP QUERIES FROM GSC:
+${queryData}
 
-  if (!campaign) {
-    return NextResponse.json({
-      campaigns: Object.entries(CAMPAIGNS).map(([url, c]) => ({ url, ...c })),
-    });
-  }
+For each query, analyze:
+1. Is this query likely to trigger a Google AI Overview? (informational intent, question-based, research queries = YES. Brand/navigation queries = NO)
+2. If AIO likely exists, is the client likely cited in it? (positions 1-5 = likely cited, 6-15 = maybe, 16+ = unlikely)
+3. What's the opportunity?
 
-  if (!campaign.hasTracking) {
-    return NextResponse.json({
-      error: `Position Tracking is not set up for ${campaign.name} in SEMrush. Go to SEMrush → Projects → ${campaign.name} → Set up Position Tracking.`,
-      setupRequired: true,
-    });
-  }
+Then provide:
+- Queries likely IN AI Overview already (positions 1-5, informational intent)
+- Queries where AIO exists but client is likely MISSING (positions 6-20, informational intent)  
+- Queries unlikely to have AIO (brand, navigational, transactional)
+- Content recommendations to improve AIO inclusion
+- An overall AIO readiness score out of 100
+
+Respond ONLY with a JSON object, no markdown, no extra text:
+{
+  "aioScore": 65,
+  "aioScoreLabel": "Moderate",
+  "summary": "One paragraph summary of AIO situation for this client",
+  "likelyInAIO": [
+    {"query": "query text", "position": 3, "impressions": 500, "reason": "why likely cited"}
+  ],
+  "likelyMissing": [
+    {"query": "query text", "position": 12, "impressions": 300, "reason": "why missing", "action": "what to do"}
+  ],
+  "notAIO": [
+    {"query": "query text", "reason": "brand/navigational/transactional"}
+  ],
+  "contentRecommendations": [
+    {"title": "specific content piece", "type": "FAQ|Guide|Comparison|Landing", "targetQuery": "query it targets", "rationale": "why this helps AIO"}
+  ],
+  "quickWins": [
+    {"action": "specific action", "impact": "high|medium|low", "effort": "high|medium|low"}
+  ]
+}`;
 
   try {
-    // Fetch all tracked keywords
-    const [allPositions, aioRanking, aioMissing, aioTriggered] = await Promise.all([
-      fetchTracking(campaign.campaignId, { type: "tracking_position_organic" }),
-      fetchTracking(campaign.campaignId, { type: "tracking_position_organic", serp_feature_filter: "aio,0" }),
-      fetchTracking(campaign.campaignId, { type: "tracking_position_organic", serp_feature_filter: "aio,1" }),
-      fetchTracking(campaign.campaignId, { type: "tracking_position_organic", serp_feature_filter: "aio" }),
-    ]);
-
-    const total = allPositions.length;
-    const inAIO = aioRanking.length;
-
-    const aioRankingSet = new Set(aioRanking.map(k => (k.Keyword || k.keyword || "").toLowerCase()));
-    const aioTriggeredSet = new Set(aioTriggered.map(k => (k.Keyword || k.keyword || "").toLowerCase()));
-
-    const opportunities = aioMissing.filter(k => {
-      const pos = parseInt(k.Position || k.position || "999");
-      return pos <= 20;
-    });
-
-    const keywordTable = allPositions.slice(0, 50).map(k => {
-      const kw = (k.Keyword || k.keyword || "").toLowerCase();
-      const pos = parseInt(k.Position || k.position || "0");
-      const prevPos = parseInt(k["Previous position"] || k.previous_position || "0");
-      const inAio = aioRankingSet.has(kw);
-      const aioExists = aioTriggeredSet.has(kw);
-      return {
-        keyword: kw,
-        position: pos,
-        previousPosition: prevPos,
-        volume: parseInt(k["Search Volume"] || k.search_volume || "0"),
-        url: k.URL || k.url || "",
-        inAIO: inAio,
-        aioExists,
-        opportunity: aioExists && !inAio && pos <= 20,
-      };
-    }).sort((a, b) => a.position - b.position);
-
-    return NextResponse.json({
-      campaign: campaign.name,
-      summary: {
-        total,
-        inAIO,
-        aioTriggered: aioTriggered.length,
-        opportunities: opportunities.length,
-        aioRate: aioTriggered.length > 0 ? Math.round((inAIO / aioTriggered.length) * 100) : 0,
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY || ""}`,
+        "HTTP-Referer": "https://adv-seo-dashboard.vercel.app",
+        "X-Title": "Advant SEO Portal",
       },
-      keywordTable,
-      opportunities: opportunities.slice(0, 20).map(k => ({
-        keyword: k.Keyword || k.keyword || "",
-        position: parseInt(k.Position || k.position || "0"),
-        volume: parseInt(k["Search Volume"] || k.search_volume || "0"),
-        url: k.URL || k.url || "",
-      })).sort((a, b) => a.position - b.position),
+      body: JSON.stringify({
+        model: "anthropic/claude-haiku-4.5",
+        max_tokens: 2000,
+        messages: [{ role: "user", content: prompt }],
+      }),
     });
+
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || "{}";
+    const clean = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(clean);
+    return NextResponse.json(parsed);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

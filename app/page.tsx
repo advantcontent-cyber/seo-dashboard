@@ -277,189 +277,186 @@ function AIInsights({ data, clientName }: { data: any; clientName: string }) {
 
 
 // ── AI Overview Section ──────────────────────────────────────────────────────
-function AIOverview({ siteUrl }: { siteUrl: string }) {
-  const [data, setData] = useState<any>(null);
+function AIOverview({ data, clientName }: { data: any; clientName: string }) {
+  const [aio, setAio] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"summary"|"opportunities"|"keywords">("summary");
+  const [tab, setTab] = useState<"missing"|"winning"|"content">("missing");
 
-  const load = useCallback(async () => {
-    if (!siteUrl) return;
-    setLoading(true); setError(null);
+  const analyze = useCallback(async () => {
+    if (!data) return;
+    setLoading(true); setError(null); setAio(null);
     try {
-      const res = await fetch(`/api/semrush?site=${encodeURIComponent(siteUrl)}`);
+      const res = await fetch("/api/semrush", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientName, topQueries: data.topQueries, topPages: data.topPages }),
+      });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-      if (json.setupRequired) throw new Error(json.error);
-      setData(json);
+      setAio(json);
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
-  }, [siteUrl]);
+  }, [clientName, data?.summary?.clicks]);
 
-  useEffect(() => { load(); }, [siteUrl]);
+  useEffect(() => { if (data) analyze(); }, [clientName, data?.summary?.clicks]);
 
-  const s = data?.summary;
+  const scoreColor = aio?.aioScore >= 70 ? "var(--teal)" : aio?.aioScore >= 40 ? "#B07C20" : "var(--rose)";
+  const scoreBg = aio?.aioScore >= 70 ? "#EDF7F3" : aio?.aioScore >= 40 ? "#FEF3E2" : "#FDF0EF";
 
   return (
     <div className="card">
       <div className="card-header">
         <div>
-          <div className="card-eyebrow">Semrush · Position Tracking</div>
-          <div className="card-title">AI Overview Performance</div>
+          <div className="card-eyebrow">Claude AI · GEO Analysis</div>
+          <div className="card-title">AI Overview Predictor</div>
         </div>
-        <button className="btn-refresh" onClick={load} disabled={loading} style={{ fontSize: 11, padding: "5px 11px" }}>
+        <button className="btn-refresh" onClick={analyze} disabled={loading} style={{ fontSize: 11, padding: "5px 11px" }}>
           <RefreshCw size={11} /> Refresh
         </button>
       </div>
 
-      {loading && <div className="ai-loading"><div className="ai-spinner" />Fetching AI Overview data from SEMrush...</div>}
-      {error && (
-        <div style={{ background: "#FDF0EF", border: "1px solid #F0C9C6", borderRadius: 8, padding: "14px 16px", fontSize: 13, color: "var(--rose)", lineHeight: 1.6 }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>⚠ Position Tracking not set up</div>
-          <div style={{ color: "var(--text-muted)" }}>{error}</div>
-        </div>
-      )}
+      {loading && <div className="ai-loading"><div className="ai-spinner" />Predicting AI Overview presence with Claude...</div>}
+      {error && <div style={{ color: "var(--rose)", fontSize: 12 }}>⚠ {error}</div>}
 
-      {s && !loading && (
+      {aio && !loading && (
         <>
-          {/* AIO KPI row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
-            {[
-              { label: "Keywords Tracked", value: s.total, color: "var(--text)" },
-              { label: "AIO Triggered", value: s.aioTriggered, color: "#C9A96E", sub: "Keywords with AI Overview on SERP" },
-              { label: "You Appear In AIO", value: s.inAIO, color: "#2A6B5E", sub: "Your domain cited in AI Overview" },
-              { label: "Missed Opportunities", value: s.opportunities, color: "#C0504A", sub: "Rank top 20 but not in AIO" },
-            ].map((m, i) => (
-              <div key={i} style={{ background: "var(--cream)", border: "1px solid var(--cream-border)", borderRadius: 10, padding: "14px 16px" }}>
-                <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{m.label}</div>
-                <div style={{ fontFamily: "Playfair Display, serif", fontSize: 28, fontWeight: 500, color: m.color }}>{m.value}</div>
-                {m.sub && <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 4 }}>{m.sub}</div>}
-              </div>
-            ))}
+          {/* Score + Summary */}
+          <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+            <div style={{ background: scoreBg, border: `1px solid ${scoreColor}30`, borderRadius: 12, padding: "16px 20px", textAlign: "center", minWidth: 100 }}>
+              <div style={{ fontFamily: "Playfair Display, serif", fontSize: 36, fontWeight: 500, color: scoreColor, lineHeight: 1 }}>{aio.aioScore}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: scoreColor, marginTop: 4, textTransform: "uppercase", letterSpacing: "0.08em" }}>{aio.aioScoreLabel}</div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>AIO Readiness</div>
+            </div>
+            <div style={{ flex: 1, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.7, padding: "4px 0" }}>{aio.summary}</div>
           </div>
 
-          {/* AIO rate bar */}
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
-              <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>AI Overview Inclusion Rate</span>
-              <span style={{ color: "var(--text)", fontWeight: 600 }}>{s.aioRate}%</span>
-            </div>
-            <div style={{ height: 8, background: "var(--cream-dark)", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${s.aioRate}%`, background: "#2A6B5E", borderRadius: 4, transition: "width 0.8s ease" }} />
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 5 }}>
-              Your domain appears in {s.inAIO} of {s.aioTriggered} AI Overviews triggered by your tracked keywords
-            </div>
+          {/* Stats row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+            {[
+              { label: "Likely IN AI Overview", value: aio.likelyInAIO?.length || 0, color: "var(--teal)", bg: "#EDF7F3" },
+              { label: "Likely MISSING from AIO", value: aio.likelyMissing?.length || 0, color: "var(--rose)", bg: "#FDF0EF" },
+              { label: "Content Recommendations", value: aio.contentRecommendations?.length || 0, color: "#B07C20", bg: "#FEF3E2" },
+            ].map((m, i) => (
+              <div key={i} style={{ background: m.bg, borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ fontFamily: "Playfair Display, serif", fontSize: 24, fontWeight: 500, color: m.color }}>{m.value}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: m.color, marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>{m.label}</div>
+              </div>
+            ))}
           </div>
 
           {/* Tabs */}
           <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--cream-border)" }}>
-            {(["summary","opportunities","keywords"] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
+            {([
+              { id: "missing", label: `Missing from AIO (${aio.likelyMissing?.length || 0})` },
+              { id: "winning", label: `In AIO (${aio.likelyInAIO?.length || 0})` },
+              { id: "content", label: `Content Plan (${aio.contentRecommendations?.length || 0})` },
+            ] as const).map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
                 padding: "7px 14px", border: "none", background: "none", cursor: "pointer",
                 fontSize: 12, fontWeight: 600, fontFamily: "Inter, sans-serif",
-                color: tab === t ? "var(--text)" : "var(--text-muted)",
-                borderBottom: tab === t ? "2px solid var(--gold)" : "2px solid transparent",
-                textTransform: "capitalize",
-              }}>
-                {t === "summary" ? "Overview" : t === "opportunities" ? `Opportunities (${s.opportunities})` : "All Keywords"}
-              </button>
+                color: tab === t.id ? "var(--text)" : "var(--text-muted)",
+                borderBottom: tab === t.id ? "2px solid var(--gold)" : "2px solid transparent",
+              }}>{t.label}</button>
             ))}
           </div>
 
-          {/* Overview tab */}
-          {tab === "summary" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div style={{ background: "#EDF7F3", border: "1px solid #C5E4D8", borderRadius: 10, padding: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#2A6B5E", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>✦ AIO Wins</div>
-                <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
-                  Your domain appears in <strong>{s.inAIO}</strong> AI Overviews out of <strong>{s.aioTriggered}</strong> triggered — a {s.aioRate}% inclusion rate. 
-                  {s.aioRate >= 20 ? " Strong AI visibility for this client." : s.aioRate >= 10 ? " Moderate AI visibility with room to grow." : " Low AI visibility — prioritise AIO optimisation."}
-                </div>
-              </div>
-              <div style={{ background: "#FDF0EF", border: "1px solid #F0C9C6", borderRadius: 10, padding: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#C0504A", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>▲ Priority Action</div>
-                <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
-                  <strong>{s.opportunities}</strong> keywords rank in top 20 but are missing from the AI Overview. 
-                  These are your easiest wins — pages already have authority, just need AIO optimisation.
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Opportunities tab */}
-          {tab === "opportunities" && (
-            <div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12, padding: "10px 14px", background: "var(--cream)", borderRadius: 8, borderLeft: "3px solid var(--gold)" }}>
-                These keywords rank in your top 20 organically but your page is <strong>not cited</strong> in the AI Overview. 
-                Adding FAQ schema, improving E-E-A-T signals, and expanding content depth are the fastest paths to AIO inclusion.
+          {/* Missing tab */}
+          {tab === "missing" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "10px 14px", background: "var(--cream)", borderRadius: 8, borderLeft: "3px solid var(--gold)", lineHeight: 1.6 }}>
+                These queries likely trigger an AI Overview but your pages are probably <strong>not cited</strong>. Optimising these pages for AIO inclusion is your highest-leverage GEO opportunity.
               </div>
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Keyword</th>
-                      <th style={{textAlign:"right"}}>Position</th>
-                      <th style={{textAlign:"right"}}>Volume</th>
-                      <th>Page</th>
-                      <th style={{textAlign:"center"}}>AIO Status</th>
+                      <th>Query</th>
+                      <th style={{textAlign:"right"}}>Pos</th>
+                      <th style={{textAlign:"right"}}>Impr.</th>
+                      <th>Why Missing</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.opportunities || []).map((k: any, i: number) => (
+                    {(aio.likelyMissing || []).map((q: any, i: number) => (
                       <tr key={i}>
-                        <td><span className="query-text">{k.keyword}</span></td>
-                        <td style={{textAlign:"right"}}><span className={`pos-tag ${k.position <= 3 ? "pos-top" : k.position <= 10 ? "pos-mid" : "pos-low"}`}>#{k.position}</span></td>
-                        <td style={{textAlign:"right", color:"var(--text-muted)"}}>{fNum(k.volume)}</td>
-                        <td><span className="page-text" title={k.url}>{k.url?.replace(/^https?:\/\/[^/]+/, "") || "/"}</span></td>
-                        <td style={{textAlign:"center"}}>
-                          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#FDF0EF", color: "#C0504A" }}>NOT IN AIO</span>
-                        </td>
+                        <td><span className="query-text">{q.query}</span></td>
+                        <td style={{textAlign:"right"}}><span className={`pos-tag ${q.position <= 3 ? "pos-top" : q.position <= 10 ? "pos-mid" : "pos-low"}`}>#{q.position}</span></td>
+                        <td style={{textAlign:"right", color:"var(--text-muted)"}}>{fNum(q.impressions)}</td>
+                        <td style={{fontSize:11, color:"var(--text-muted)", maxWidth:160}}>{q.reason}</td>
+                        <td style={{fontSize:11, color:"var(--teal)", fontWeight:500, maxWidth:180}}>{q.action}</td>
                       </tr>
                     ))}
-                    {(!data.opportunities || data.opportunities.length === 0) && (
-                      <tr><td colSpan={5} className="empty-cell">No opportunities found — great AIO coverage!</td></tr>
-                    )}
+                    {(!aio.likelyMissing?.length) && <tr><td colSpan={5} className="empty-cell">No missing opportunities found</td></tr>}
                   </tbody>
                 </table>
               </div>
+
+              {/* Quick wins */}
+              {aio.quickWins?.length > 0 && (
+                <div>
+                  <div className="card-eyebrow" style={{ marginBottom: 10 }}>Quick Wins</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {aio.quickWins.map((w: any, i: number) => (
+                      <div key={i} style={{ display: "flex", gap: 12, padding: "12px 14px", background: "var(--cream)", borderRadius: 8, alignItems: "flex-start" }}>
+                        <div style={{ minWidth: 22, height: 22, background: "var(--text)", color: "var(--cream)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginTop: 1 }}>{i + 1}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: "var(--text)", marginBottom: 5 }}>{w.action}</div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: w.impact === "high" ? "#EDF7F3" : w.impact === "medium" ? "#FEF3E2" : "#F5F5F5", color: w.impact === "high" ? "var(--teal)" : w.impact === "medium" ? "#B07C20" : "var(--text-muted)" }}>{w.impact?.toUpperCase()} IMPACT</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#F5F5F5", color: "var(--text-muted)" }}>{w.effort?.toUpperCase()} EFFORT</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* All keywords tab */}
-          {tab === "keywords" && (
+          {/* Winning tab */}
+          {tab === "winning" && (
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Keyword</th>
+                    <th>Query</th>
                     <th style={{textAlign:"right"}}>Pos</th>
-                    <th style={{textAlign:"right"}}>Prev</th>
-                    <th style={{textAlign:"right"}}>Volume</th>
-                    <th style={{textAlign:"center"}}>AIO</th>
+                    <th style={{textAlign:"right"}}>Impr.</th>
+                    <th>Why Likely Cited</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(data.keywordTable || []).map((k: any, i: number) => (
+                  {(aio.likelyInAIO || []).map((q: any, i: number) => (
                     <tr key={i}>
-                      <td><span className="query-text">{k.keyword}</span></td>
-                      <td style={{textAlign:"right"}}><span className={`pos-tag ${k.position <= 3 ? "pos-top" : k.position <= 10 ? "pos-mid" : "pos-low"}`}>#{k.position}</span></td>
-                      <td style={{textAlign:"right", color: k.position < k.previousPosition ? "#2A6B5E" : k.position > k.previousPosition ? "#C0504A" : "var(--text-muted)", fontSize: 12}}>
-                        {k.previousPosition > 0 ? `#${k.previousPosition}` : "—"}
-                      </td>
-                      <td style={{textAlign:"right", color:"var(--text-muted)"}}>{fNum(k.volume)}</td>
-                      <td style={{textAlign:"center"}}>
-                        {k.inAIO
-                          ? <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#EDF7F3", color: "#2A6B5E" }}>✓ IN AIO</span>
-                          : k.aioExists
-                          ? <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: "#FDF0EF", color: "#C0504A" }}>MISSING</span>
-                          : <span style={{ fontSize: 10, color: "var(--text-dim)" }}>—</span>
-                        }
-                      </td>
+                      <td><span className="query-text">{q.query}</span></td>
+                      <td style={{textAlign:"right"}}><span className="pos-tag pos-top">#{q.position}</span></td>
+                      <td style={{textAlign:"right", color:"var(--text-muted)"}}>{fNum(q.impressions)}</td>
+                      <td style={{fontSize:11, color:"var(--text-muted)"}}>{q.reason}</td>
                     </tr>
                   ))}
+                  {(!aio.likelyInAIO?.length) && <tr><td colSpan={4} className="empty-cell">No keywords predicted in AIO yet</td></tr>}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Content Plan tab */}
+          {tab === "content" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(aio.contentRecommendations || []).map((c: any, i: number) => (
+                <div key={i} style={{ display: "flex", gap: 12, padding: "14px", background: "var(--cream)", borderRadius: 10, alignItems: "flex-start" }}>
+                  <span style={{ background: "var(--text)", color: "var(--cream)", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 4, whiteSpace: "nowrap" as const, marginTop: 2 }}>{c.type?.toUpperCase()}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 3 }}>{c.title}</div>
+                    <div style={{ fontSize: 11, color: "var(--blue)", marginBottom: 4, fontStyle: "italic" }}>Target: "{c.targetQuery}"</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>{c.rationale}</div>
+                  </div>
+                </div>
+              ))}
+              {(!aio.contentRecommendations?.length) && <div className="empty-cell">No content recommendations generated</div>}
             </div>
           )}
         </>
@@ -467,6 +464,8 @@ function AIOverview({ siteUrl }: { siteUrl: string }) {
     </div>
   );
 }
+
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, change, sub, inverseGood }: any) {
@@ -720,7 +719,7 @@ export default function Dashboard() {
 
             <AIInsights data={data} clientName={siteName(activeUrl)} />
 
-            <AIOverview siteUrl={activeUrl} />
+            <AIOverview data={data} clientName={siteName(activeUrl)} />
 
             <div className="two-col">
               <div className="card">
