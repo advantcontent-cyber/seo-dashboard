@@ -54,15 +54,15 @@ GA4 DATA:
 - Sessions: ${ga4?.summary?.sessions} (${ga4?.summary?.change?.sessions > 0 ? "+" : ""}${ga4?.summary?.change?.sessions}% vs prev)
 - Engagement rate: ${ga4?.summary?.engRate}% | Avg duration: ${Math.floor((ga4?.summary?.avgDuration || 0) / 60)}m ${Math.floor((ga4?.summary?.avgDuration || 0) % 60)}s
 ${organicChannel ? `- Organic sessions: ${organicChannel.sessions} | Organic engagement rate: ${organicChannel.engRate}%` : ""}
-- Total purchases/bookings: ${purchases}
-${organicPurchases ? `- Organic purchases: ${organicPurchases.purchases} | Organic conv. rate: ${organicPurchases.convRate}%` : ""}
-${checkoutConv ? `- Session-to-booking conv. rate: ${checkoutConv}%` : ""}
-${checkoutStep ? `- Checkout events: ${checkoutStep.count}` : ""}
-${purchaseStep ? `- Confirmed bookings/purchases: ${purchaseStep.count}` : ""}
+${purchases > 0 ? `- Total purchases/bookings (all channels): ${purchases}` : "- Purchase/booking data: not available for this client"}
+${organicPurchases?.purchases > 0 ? `- Organic channel purchases: ${organicPurchases.purchases} | Organic conv. rate: ${organicPurchases.convRate}%` : ""}
+${checkoutConv && parseFloat(checkoutConv) > 0 ? `- Session-to-booking conv. rate: ${checkoutConv}%` : ""}
+${checkoutStep?.count > 0 ? `- Checkout events: ${checkoutStep.count}` : ""}
+${purchaseStep?.count > 0 ? `- Confirmed bookings/purchases (GA4 purchase event): ${purchaseStep.count}` : ""}
 
 Write the response as a JSON object. No markdown, no extra text:
 {
-  "headline": "Exactly 3-4 sentences (~200 words). Analytical, specific, senior SEO strategist tone. Must: (1) explain the click/impression/CTR story with real numbers, (2) connect to seasonal context and what it means for upcoming period, (3) reference specific top queries or pages with their actual metrics, (4) mention purchase/booking performance and what organic traffic is actually converting to, (5) end with the single most important implication. No generic phrases like 'data gaps' or 'signals stronger relevance'. Write like you are presenting to a hotel GM.",
+  "headline": "3-4 sentences, approximately 200 words. Write as a senior SEO strategist presenting to a hotel GM. Rules: (1) Lead with the click/impression/CTR dynamic using exact numbers from GSC. (2) Reference 1-2 specific top queries or pages with their actual position and click numbers. (3) Connect to seasonal context — what does this performance mean heading into the upcoming season. (4) ONLY mention bookings if GA4 booking data is available and greater than zero — if so, state the channel (e.g. organic channel drove X bookings at Y% conv rate from GA4 data). If booking data is not available or zero, skip it entirely and focus on engagement metrics instead. (5) End with the single sharpest implication for the business. Never use phrases like: zero bookings, data gaps, signals stronger relevance, cannot assess.",
   "working": [
     "Specific win with real numbers referencing actual query/page/country data (max 18 words)",
     "Specific win with real numbers (max 18 words)",
