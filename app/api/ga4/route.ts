@@ -73,15 +73,13 @@ export async function GET(req: NextRequest) {
   const extraPrev = { date_from: fmt(prevFrom), date_to: fmt(prevTo), property_id: propertyId };
 
   try {
-    const [curr, prev, byChannel, byPage, byDate, byDevice, byEvent, byChannelEvent] = await Promise.all([
+    const [curr, prev, byChannel, byPage, byDate, byDevice] = await Promise.all([
       windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration,screen_page_views", extra),
       windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration", extraPrev),
       windsor(apiKey, "session_default_channel_group,sessions,active_users,engaged_sessions", extra),
       windsor(apiKey, "page_path,screen_page_views,active_users,average_session_duration,engaged_sessions", extra),
       windsor(apiKey, "date,sessions,active_users", extra),
       windsor(apiKey, "deviceCategory,sessions,active_users", extra),
-      windsor(apiKey, "event_name,event_count", extra),
-      windsor(apiKey, "session_default_channel_group,event_name,event_count,sessions", extra),
     ]);
 
     const cs = sumF(curr, "sessions"), cu = sumF(curr, "active_users");
@@ -146,48 +144,6 @@ export async function GET(req: NextRequest) {
       device: d.device, sessions: Math.round(d.sessions), users: Math.round(d.users),
     })).sort((a, b) => b.sessions - a.sessions);
 
-    // Events
-    const eventMap: Record<string, number> = {};
-    for (const r of byEvent) {
-      const name = r.event_name; if (!name) continue;
-      eventMap[name] = (eventMap[name] || 0) + (parseFloat(r.event_count) || 0);
-    }
-
-    // Booking funnel
-    const funnel = [
-      { label: "Sessions", count: Math.round(cs) },
-      { label: "Room Views", count: Math.round(eventMap["view_item_list"] || 0) },
-      { label: "Check Availability", count: Math.round(eventMap["check_availability"] || 0) },
-      { label: "Begin Checkout", count: Math.round(eventMap["begin_checkout"] || 0) },
-      { label: "Purchase / Booking", count: Math.round(eventMap["purchase"] || 0) },
-    ];
-
-    // Key events
-    const keyEvents = [
-      { name: "Generate Lead", count: Math.round((eventMap["generate_lead"] || 0) + (eventMap["form_submit"] || 0)) },
-      { name: "Book Your Stay", count: Math.round(eventMap["Click Book Your Stay"] || 0) },
-      { name: "Offer Booked", count: Math.round(eventMap["offer_book"] || 0) },
-      { name: "Add to Cart", count: Math.round(eventMap["add_to_cart"] || 0) },
-      { name: "WhatsApp Click", count: Math.round(eventMap["whatsapp_click"] || 0) },
-      { name: "Call Click", count: Math.round(eventMap["call_click"] || 0) },
-    ].filter(e => e.count > 0).sort((a, b) => b.count - a.count);
-
-    // Channel + purchase performance
-    const chEventMap: Record<string, any> = {};
-    for (const r of byChannelEvent) {
-      const ch = r.session_default_channel_group || "Other";
-      const ev = r.event_name;
-      if (!chEventMap[ch]) chEventMap[ch] = { sessions: 0, purchases: 0 };
-      chEventMap[ch].sessions += parseFloat(r.sessions) || 0;
-      if (ev === "purchase") chEventMap[ch].purchases += parseFloat(r.event_count) || 0;
-    }
-    const channelPerformance = Object.entries(chEventMap).map(([channel, d]: [string, any]) => ({
-      channel,
-      sessions: Math.round(d.sessions),
-      purchases: Math.round(d.purchases),
-      convRate: d.sessions > 0 ? Math.round((d.purchases / d.sessions) * 1000) / 10 : 0,
-    })).sort((a, b) => b.sessions - a.sessions);
-
     return NextResponse.json({
       summary: {
         sessions: Math.round(cs), users: Math.round(cu),
@@ -200,7 +156,6 @@ export async function GET(req: NextRequest) {
         },
       },
       channels, topPages, trend, devices,
-      funnel, keyEvents, channelPerformance,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

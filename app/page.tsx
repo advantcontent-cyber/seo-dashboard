@@ -438,54 +438,6 @@ function GA4Section({ siteUrl, dateFrom, dateTo, onData }: { siteUrl: string; da
             </ResponsiveContainer>
           </div>
 
-          {/* Booking Funnel */}
-          <div className="card">
-            <div className="card-eyebrow">Conversion Path</div>
-            <div className="card-title">Booking Funnel</div>
-            <div style={{display:"flex",flexDirection:"column" as const,gap:8}}>
-              {(data.funnel || []).map((step: any, i: number, arr: any[]) => {
-                const pct = i === 0 ? 100 : arr[0].count > 0 ? Math.round((step.count/arr[0].count)*100) : 0;
-                const drop = i > 0 && arr[i-1].count > 0 ? Math.round(((arr[i-1].count - step.count)/arr[i-1].count)*100) : 0;
-                const barColor = i === 0 ? "var(--teal)" : drop > 80 ? "var(--rose)" : drop > 50 ? "#B07C20" : "var(--teal)";
-                return (
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:22,height:22,borderRadius:"50%",background:"var(--cream-dark)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--text-muted)",flexShrink:0}}>{i+1}</div>
-                    <div style={{flex:1}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                        <span style={{fontSize:12,fontWeight:500,color:"var(--text)"}}>{step.label}</span>
-                        <div style={{display:"flex",gap:12,alignItems:"center"}}>
-                          {i > 0 && <span style={{fontSize:10,color:"var(--rose)",fontWeight:600}}>▼ {drop}% drop</span>}
-                          <span style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{fNum(step.count)}</span>
-                          <span style={{fontSize:10,color:"var(--text-muted)"}}>{pct}% of sessions</span>
-                        </div>
-                      </div>
-                      <div style={{height:6,background:"var(--cream-dark)",borderRadius:3,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${pct}%`,background:barColor,borderRadius:3,transition:"width 0.6s ease"}}/>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {data.funnel?.length > 0 && (
-                <div style={{marginTop:4,padding:"10px 14px",background:"var(--cream)",borderRadius:8,fontSize:12,color:"var(--text-muted)"}}>
-                  {(() => {
-                    const f = data.funnel;
-                    const worstIdx = f.slice(1).reduce((wi: number, s: any, i: number, arr: any[]) => {
-                      const prevCount = f[i].count;
-                      const drop = prevCount > 0 ? (prevCount - s.count)/prevCount : 0;
-                      const worstDrop = f[wi].count > 0 ? (f[wi].count - f[wi+1]?.count || 0)/f[wi].count : 0;
-                      return drop > worstDrop ? i : wi;
-                    }, 0);
-                    const worst = f[worstIdx+1];
-                    const prev = f[worstIdx];
-                    const drop = prev.count > 0 ? Math.round(((prev.count-worst.count)/prev.count)*100) : 0;
-                    return `Biggest drop-off: ${prev.label} → ${worst.label}, losing ${drop}% of users — priority stage to fix.`;
-                  })()}
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Channel Performance */}
           <div className="card">
             <div className="card-eyebrow">Traffic Sources</div>
@@ -527,19 +479,7 @@ function GA4Section({ siteUrl, dateFrom, dateTo, onData }: { siteUrl: string; da
             </div>
           </div>
 
-          {/* Key Events */}
-          <div className="card">
-            <div className="card-eyebrow">User Actions</div>
-            <div className="card-title">Key Events</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-              {(data.keyEvents || []).map((e: any, i: number) => (
-                <div key={i} style={{background:"var(--cream)",borderRadius:8,padding:"12px 14px"}}>
-                  <div style={{fontFamily:"Playfair Display, serif",fontSize:22,fontWeight:500,color:"var(--text)"}}>{fNum(e.count)}</div>
-                  <div style={{fontSize:10,fontWeight:600,color:"var(--text-muted)",marginTop:4,textTransform:"uppercase" as const,letterSpacing:"0.06em"}}>{e.name}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+
         </>
       )}
     </div>
