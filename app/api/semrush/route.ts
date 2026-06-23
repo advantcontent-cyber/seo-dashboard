@@ -12,10 +12,16 @@ async function fetchTracking(projectId: string, params: Record<string, string>) 
   const apiKey = process.env.SEMRUSH_API_KEY;
   if (!apiKey) throw new Error("SEMRUSH_API_KEY not configured");
 
-  // Build query string manually — URLSearchParams drops empty values
-  const base = `key=${apiKey}&action=report&competitors[]=`;
-  const extra = Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
-  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/?${base}&${extra}`;
+  // Build query string manually preserving empty competitors[]
+  const parts: string[] = [
+    `key=${apiKey}`,
+    `action=report`,
+    `competitors%5B%5D=`,  // competitors[] URL encoded
+  ];
+  for (const [k, v] of Object.entries(params)) {
+    parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+  }
+  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/?${parts.join("&")}`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
 
   if (!res.ok) {
