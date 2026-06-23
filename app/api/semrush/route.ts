@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const CAMPAIGNS: Record<string, { projectId: string; name: string; hasTracking: boolean }> = {
-  "https://www.sorahotels.com/sorasukhumvit/": { projectId: "28548179", name: "Sora Hotels Sukhumvit", hasTracking: true },
-  "https://khao-yai.intercontinental.com/": { projectId: "28547626", name: "IC Khao Yai", hasTracking: false },
+const CAMPAIGNS: Record<string, { projectId: string; campaignId: string; name: string; hasTracking: boolean }> = {
+  "https://www.sorahotels.com/sorasukhumvit/": { projectId: "28548179", campaignId: "28548179_5012473", name: "Sora Hotels Sukhumvit", hasTracking: true },
+  "https://khao-yai.intercontinental.com/": { projectId: "28547626", campaignId: "", name: "IC Khao Yai", hasTracking: false },
 };
 
 async function fetchTracking(projectId: string, params: Record<string, string>) {
@@ -49,10 +49,10 @@ export async function GET(req: NextRequest) {
   try {
     // Fetch all tracked keywords
     const [allPositions, aioRanking, aioMissing, aioTriggered] = await Promise.all([
-      fetchTracking(campaign.projectId, { type: "tracking_position_organic" }),
-      fetchTracking(campaign.projectId, { type: "tracking_position_organic", serp_feature_filter: "aio,0" }),
-      fetchTracking(campaign.projectId, { type: "tracking_position_organic", serp_feature_filter: "aio,1" }),
-      fetchTracking(campaign.projectId, { type: "tracking_position_organic", serp_feature_filter: "aio" }),
+      fetchTracking(campaign.campaignId, { type: "tracking_position_organic" }),
+      fetchTracking(campaign.campaignId, { type: "tracking_position_organic", serp_feature_filter: "aio,0" }),
+      fetchTracking(campaign.campaignId, { type: "tracking_position_organic", serp_feature_filter: "aio,1" }),
+      fetchTracking(campaign.campaignId, { type: "tracking_position_organic", serp_feature_filter: "aio" }),
     ]);
 
     const total = allPositions.length;
