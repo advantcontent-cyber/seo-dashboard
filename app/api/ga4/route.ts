@@ -55,19 +55,19 @@ export async function GET(req: NextRequest) {
 
   try {
     const [curr, prev, byChannel, byPage, byDate, byDevice] = await Promise.all([
-      windsor(apiKey, "sessions,activeusers,engagedsessions,avgsessionduration,screenviews", extra),
-      windsor(apiKey, "sessions,activeusers,engagedsessions,avgsessionduration", extraPrev),
-      windsor(apiKey, "channelgrouping,sessions,activeusers,engagedsessions", extra),
-      windsor(apiKey, "pagepath,screenviews,activeusers,avgsessionduration,engagedsessions", extra),
-      windsor(apiKey, "date,sessions,activeusers", extra),
-      windsor(apiKey, "devicecategory,sessions,activeusers", extra),
+      windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration,pageviews", extra),
+      windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration", extraPrev),
+      windsor(apiKey, "session_default_channel_group,sessions,active_users,engaged_sessions", extra),
+      windsor(apiKey, "page_path,pageviews,active_users,average_session_duration,engaged_sessions", extra),
+      windsor(apiKey, "date,sessions,active_users", extra),
+      windsor(apiKey, "deviceCategory,sessions,active_users", extra),
     ]);
 
-    const cs = sumF(curr, "sessions"), cu = sumF(curr, "activeusers");
-    const ce = sumF(curr, "engagedsessions"), cd = avgF(curr, "avgsessionduration");
-    const cpv = sumF(curr, "screenviews");
-    const ps = sumF(prev, "sessions"), pu = sumF(prev, "activeusers");
-    const pe = sumF(prev, "engagedsessions"), pd = avgF(prev, "avgsessionduration");
+    const cs = sumF(curr, "sessions"), cu = sumF(curr, "active_users");
+    const ce = sumF(curr, "engaged_sessions"), cd = avgF(curr, "average_session_duration");
+    const cpv = sumF(curr, "pageviews");
+    const ps = sumF(prev, "sessions"), pu = sumF(prev, "active_users");
+    const pe = sumF(prev, "engaged_sessions"), pd = avgF(prev, "average_session_duration");
 
     const engRate = cs > 0 ? Math.round((ce / cs) * 100) : 0;
     const prevEngRate = ps > 0 ? Math.round((pe / ps) * 100) : 0;
@@ -75,11 +75,11 @@ export async function GET(req: NextRequest) {
     // Channels
     const chMap: Record<string, any> = {};
     for (const r of byChannel) {
-      const ch = r.channelgrouping || "Other";
+      const ch = r.session_default_channel_group || "Other";
       if (!chMap[ch]) chMap[ch] = { channel: ch, sessions: 0, users: 0, engaged: 0 };
       chMap[ch].sessions += parseFloat(r.sessions) || 0;
-      chMap[ch].users += parseFloat(r.activeusers) || 0;
-      chMap[ch].engaged += parseFloat(r.engagedsessions) || 0;
+      chMap[ch].users += parseFloat(r.active_users) || 0;
+      chMap[ch].engaged += parseFloat(r.engaged_sessions) || 0;
     }
     const channels = Object.values(chMap).map((c: any) => ({
       channel: c.channel,
@@ -91,12 +91,12 @@ export async function GET(req: NextRequest) {
     // Top pages
     const pgMap: Record<string, any> = {};
     for (const r of byPage) {
-      const p = r.pagepath; if (!p) continue;
+      const p = r.page_path; if (!p) continue;
       if (!pgMap[p]) pgMap[p] = { page: p, pageviews: 0, users: 0, durations: [], engaged: 0 };
-      pgMap[p].pageviews += parseFloat(r.screenviews) || 0;
-      pgMap[p].users += parseFloat(r.activeusers) || 0;
-      pgMap[p].durations.push(parseFloat(r.avgsessionduration) || 0);
-      pgMap[p].engaged += parseFloat(r.engagedsessions) || 0;
+      pgMap[p].pageviews += parseFloat(r.pageviews) || 0;
+      pgMap[p].users += parseFloat(r.active_users) || 0;
+      pgMap[p].durations.push(parseFloat(r.average_session_duration) || 0);
+      pgMap[p].engaged += parseFloat(r.engaged_sessions) || 0;
     }
     const topPages = Object.values(pgMap).map((p: any) => ({
       page: p.page,
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
       const d = r.date; if (!d) continue;
       if (!dMap[d]) dMap[d] = { date: d, sessions: 0, users: 0 };
       dMap[d].sessions += parseFloat(r.sessions) || 0;
-      dMap[d].users += parseFloat(r.activeusers) || 0;
+      dMap[d].users += parseFloat(r.active_users) || 0;
     }
     const trend = Object.values(dMap).map((d: any) => ({
       date: d.date.slice(5), sessions: Math.round(d.sessions), users: Math.round(d.users),
@@ -121,10 +121,10 @@ export async function GET(req: NextRequest) {
     // Devices
     const devMap: Record<string, any> = {};
     for (const r of byDevice) {
-      const dev = r.devicecategory || "other";
+      const dev = r.deviceCategory || "other";
       if (!devMap[dev]) devMap[dev] = { device: dev, sessions: 0, users: 0 };
       devMap[dev].sessions += parseFloat(r.sessions) || 0;
-      devMap[dev].users += parseFloat(r.activeusers) || 0;
+      devMap[dev].users += parseFloat(r.active_users) || 0;
     }
     const devices = Object.values(devMap).map((d: any) => ({
       device: d.device, sessions: Math.round(d.sessions), users: Math.round(d.users),
