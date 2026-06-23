@@ -55,17 +55,17 @@ export async function GET(req: NextRequest) {
 
   try {
     const [curr, prev, byChannel, byPage, byDate, byDevice] = await Promise.all([
-      windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration,pageviews", extra),
+      windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration,screen_page_views", extra),
       windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration", extraPrev),
       windsor(apiKey, "session_default_channel_group,sessions,active_users,engaged_sessions", extra),
-      windsor(apiKey, "page_path,pageviews,active_users,average_session_duration,engaged_sessions", extra),
+      windsor(apiKey, "page_path,screen_page_views,active_users,average_session_duration,engaged_sessions", extra),
       windsor(apiKey, "date,sessions,active_users", extra),
       windsor(apiKey, "deviceCategory,sessions,active_users", extra),
     ]);
 
     const cs = sumF(curr, "sessions"), cu = sumF(curr, "active_users");
     const ce = sumF(curr, "engaged_sessions"), cd = avgF(curr, "average_session_duration");
-    const cpv = sumF(curr, "pageviews");
+    const cpv = sumF(curr, "screen_page_views");
     const ps = sumF(prev, "sessions"), pu = sumF(prev, "active_users");
     const pe = sumF(prev, "engaged_sessions"), pd = avgF(prev, "average_session_duration");
 
@@ -92,19 +92,19 @@ export async function GET(req: NextRequest) {
     const pgMap: Record<string, any> = {};
     for (const r of byPage) {
       const p = r.page_path; if (!p) continue;
-      if (!pgMap[p]) pgMap[p] = { page: p, pageviews: 0, users: 0, durations: [], engaged: 0 };
-      pgMap[p].pageviews += parseFloat(r.pageviews) || 0;
+      if (!pgMap[p]) pgMap[p] = { page: p, screen_page_views: 0, users: 0, durations: [], engaged: 0 };
+      pgMap[p].screen_page_views += parseFloat(r.screen_page_views) || 0;
       pgMap[p].users += parseFloat(r.active_users) || 0;
       pgMap[p].durations.push(parseFloat(r.average_session_duration) || 0);
       pgMap[p].engaged += parseFloat(r.engaged_sessions) || 0;
     }
     const topPages = Object.values(pgMap).map((p: any) => ({
       page: p.page,
-      pageviews: Math.round(p.pageviews),
+      screen_page_views: Math.round(p.screen_page_views),
       users: Math.round(p.users),
       avgDuration: Math.round(p.durations.reduce((a: number, b: number) => a + b, 0) / (p.durations.length || 1)),
-      engRate: p.pageviews > 0 ? Math.round((p.engaged / p.pageviews) * 100) : 0,
-    })).sort((a, b) => b.pageviews - a.pageviews).slice(0, 10);
+      engRate: p.screen_page_views > 0 ? Math.round((p.engaged / p.screen_page_views) * 100) : 0,
+    })).sort((a, b) => b.screen_page_views - a.screen_page_views).slice(0, 10);
 
     // Trend
     const dMap: Record<string, any> = {};
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       summary: {
         sessions: Math.round(cs), users: Math.round(cu),
         engagedSessions: Math.round(ce), engRate,
-        avgDuration: Math.round(cd), pageviews: Math.round(cpv),
+        avgDuration: Math.round(cd), screen_page_views: Math.round(cpv),
         change: {
           sessions: pct(cs, ps), users: pct(cu, pu),
           engRate: pct(engRate, prevEngRate),
