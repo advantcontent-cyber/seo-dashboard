@@ -1,55 +1,80 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const SEASONAL_CONTEXT: Record<string, string> = {
+  "shintamani": "Cambodia dry season peaks Nov-Feb (Wild/Angkor). Nepal trekking seasons: spring (Mar-May) and autumn (Sep-Nov) for Mustang.",
+  "sorahotels": "Bangkok high season Oct-Feb. Songkran (Apr) drives domestic travel. MICE season Sep-Nov.",
+  "khaoyai": "Khao Yai cool season Nov-Feb is peak. Thai public holidays and long weekends drive weekend getaways year-round.",
+  "intercontinental": "Khao Yai cool season Nov-Feb is peak. Thai public holidays and long weekends drive weekend getaways year-round.",
+  "songsaa": "Cambodia dry season Nov-May is peak island season. Wet season Jun-Oct sees significant drop in bookings.",
+  "cottars": "Kenya peak seasons: Jan-Mar and Jul-Oct (Great Migration Jul-Sep). Low season Apr-Jun.",
+};
+
+function getSeasonalContext(clientName: string): string {
+  const key = Object.keys(SEASONAL_CONTEXT).find(k => clientName.toLowerCase().includes(k));
+  return key ? SEASONAL_CONTEXT[key] : "Consider local public holidays and regional travel patterns when contextualising performance.";
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const {
-    clientName, dateFrom, dateTo,
-    gsc, ga4,
-  } = body;
+  const { clientName, dateFrom, dateTo, gsc, ga4 } = body;
 
-  // Extract organic channel from GA4
   const organicChannel = (ga4?.channels || []).find((c: any) =>
     c.channel?.toLowerCase().includes("organic")
   );
 
-  const prompt = `You are an SEO analyst for Advant AI, a luxury hotel digital marketing agency.
-Write a period performance summary for ${clientName} covering ${dateFrom} to ${dateTo}.
+  const purchases = ga4?.channelPerformance?.reduce((s: number, c: any) => s + (c.purchases || 0), 0) || 0;
+  const organicPurchases = ga4?.channelPerformance?.find((c: any) =>
+    c.channel?.toLowerCase().includes("organic")
+  );
+  const funnelData = ga4?.funnel || [];
+  const checkoutStep = funnelData.find((s: any) => s.label?.includes("Checkout"));
+  const purchaseStep = funnelData.find((s: any) => s.label?.includes("Purchase"));
+  const sessionStep = funnelData[0];
+  const checkoutConv = sessionStep?.count > 0 && purchaseStep?.count > 0
+    ? ((purchaseStep.count / sessionStep.count) * 100).toFixed(3)
+    : null;
 
-GSC DATA (search visibility):
+  const seasonal = getSeasonalContext(clientName);
+  const currentMonth = new Date().toLocaleString("en", { month: "long" });
+
+  const prompt = `You are a senior SEO strategist at Advant AI, a luxury hotel digital marketing agency. Write a performance summary for ${clientName} covering ${dateFrom} to ${dateTo}. Current month: ${currentMonth}.
+
+SEASONAL CONTEXT: ${seasonal}
+
+GSC DATA:
 - Clicks: ${gsc?.summary?.clicks} (${gsc?.summary?.change?.clicks > 0 ? "+" : ""}${gsc?.summary?.change?.clicks}% vs prev period)
 - Impressions: ${gsc?.summary?.impressions} (${gsc?.summary?.change?.impressions > 0 ? "+" : ""}${gsc?.summary?.change?.impressions}%)
 - CTR: ${gsc?.summary?.ctr}% | Avg Position: #${gsc?.summary?.position} (${gsc?.summary?.change?.position > 0 ? "+" : ""}${gsc?.summary?.change?.position}%)
-- Top queries: ${(gsc?.topQueries || []).slice(0, 5).map((q: any) => `"${q.query}" #${q.position} ${q.clicks}clicks`).join(", ")}
-- Top pages: ${(gsc?.topPages || []).slice(0, 4).map((p: any) => `${p.page?.replace(/^https?:\/\/[^/]+/, "") || "/"} #${p.position} ${p.clicks}clicks`).join(", ")}
+- Top queries: ${(gsc?.topQueries || []).slice(0, 5).map((q: any) => `"${q.query}" pos#${q.position} ${q.clicks}clicks ${q.impressions}impr CTR${q.ctr}%`).join(", ")}
+- Top pages: ${(gsc?.topPages || []).slice(0, 4).map((p: any) => `${p.page?.replace(/^https?:\/\/[^/]+/, "") || "/"} pos#${p.position} ${p.clicks}clicks ${p.impressions}impr CTR${p.ctr}%`).join(", ")}
 - Devices: ${(gsc?.byDevice || []).map((d: any) => `${d.device} ${d.clicks}clicks CTR${d.ctr}%`).join(", ")}
-- Top country: ${(gsc?.byCountry || [])[0]?.country || "N/A"} (${(gsc?.byCountry || [])[0]?.clicks || 0} clicks)
+- Top countries: ${(gsc?.byCountry || []).slice(0, 3).map((c: any) => `${c.country} ${c.clicks}clicks`).join(", ")}
 
-GA4 DATA (on-site behaviour):
-- Total sessions: ${ga4?.summary?.sessions} (${ga4?.summary?.change?.sessions > 0 ? "+" : ""}${ga4?.summary?.change?.sessions}% vs prev)
-- Active users: ${ga4?.summary?.users}
-- Engagement rate: ${ga4?.summary?.engRate}% (${ga4?.summary?.change?.engRate > 0 ? "+" : ""}${ga4?.summary?.change?.engRate}%)
-- Avg session duration: ${Math.floor((ga4?.summary?.avgDuration || 0) / 60)}m ${Math.floor((ga4?.summary?.avgDuration || 0) % 60)}s
-${organicChannel ? `- Organic channel: ${organicChannel.sessions} sessions, ${organicChannel.engRate}% engagement rate` : ""}
-- Top pages by views: ${(ga4?.topPages || []).slice(0, 4).map((p: any) => `${p.page} ${p.pageviews}views ${Math.floor(p.avgDuration/60)}m${Math.floor(p.avgDuration%60)}s`).join(", ")}
-- Devices: ${(ga4?.devices || []).map((d: any) => `${d.device} ${d.sessions}sessions`).join(", ")}
+GA4 DATA:
+- Sessions: ${ga4?.summary?.sessions} (${ga4?.summary?.change?.sessions > 0 ? "+" : ""}${ga4?.summary?.change?.sessions}% vs prev)
+- Engagement rate: ${ga4?.summary?.engRate}% | Avg duration: ${Math.floor((ga4?.summary?.avgDuration || 0) / 60)}m ${Math.floor((ga4?.summary?.avgDuration || 0) % 60)}s
+${organicChannel ? `- Organic sessions: ${organicChannel.sessions} | Organic engagement rate: ${organicChannel.engRate}%` : ""}
+- Total purchases/bookings: ${purchases}
+${organicPurchases ? `- Organic purchases: ${organicPurchases.purchases} | Organic conv. rate: ${organicPurchases.convRate}%` : ""}
+${checkoutConv ? `- Session-to-booking conv. rate: ${checkoutConv}%` : ""}
+${checkoutStep ? `- Checkout events: ${checkoutStep.count}` : ""}
+${purchaseStep ? `- Confirmed bookings/purchases: ${purchaseStep.count}` : ""}
 
-Respond ONLY with a raw JSON object, no markdown, no extra text:
+Write the response as a JSON object. No markdown, no extra text:
 {
-  "headline": "2-3 sentences combining GSC visibility + GA4 engagement for the period",
+  "headline": "Exactly 3-4 sentences (~200 words). Analytical, specific, senior SEO strategist tone. Must: (1) explain the click/impression/CTR story with real numbers, (2) connect to seasonal context and what it means for upcoming period, (3) reference specific top queries or pages with their actual metrics, (4) mention purchase/booking performance and what organic traffic is actually converting to, (5) end with the single most important implication. No generic phrases like 'data gaps' or 'signals stronger relevance'. Write like you are presenting to a hotel GM.",
   "working": [
-    "specific GSC or GA4 win with real numbers (max 15 words)",
-    "specific GSC or GA4 win with real numbers (max 15 words)",
-    "specific GSC or GA4 win with real numbers (max 15 words)"
+    "Specific win with real numbers referencing actual query/page/country data (max 18 words)",
+    "Specific win with real numbers (max 18 words)",
+    "Specific win with real numbers (max 18 words)"
   ],
   "watchout": [
-    "specific concern from GSC or GA4 with real numbers (max 15 words)",
-    "specific concern from GSC or GA4 with real numbers (max 15 words)",
-    "specific concern from GSC or GA4 with real numbers (max 15 words)"
+    "Specific concern with real numbers and consequence (max 18 words)",
+    "Specific concern with real numbers and consequence (max 18 words)",
+    "Specific concern with real numbers and consequence (max 18 words)"
   ],
-  "priority": "One focused action combining GSC + GA4 insight with quantified impact (max 25 words)"
-}
-
-Rules: Use real numbers from the data. Reference both GSC and GA4 where relevant. Be specific about organic traffic behaviour — clicks that lead to engaged sessions, duration, drop-offs. No generic advice.`;
+  "priority": "One focused action with quantified impact, seasonal urgency, and which page/query to target (max 30 words)"
+}`;
 
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -62,7 +87,7 @@ Rules: Use real numbers from the data. Reference both GSC and GA4 where relevant
       },
       body: JSON.stringify({
         model: "anthropic/claude-haiku-4.5",
-        max_tokens: 700,
+        max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
