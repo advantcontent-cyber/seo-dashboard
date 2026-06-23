@@ -447,29 +447,35 @@ function GA4Section({ siteUrl, dateFrom, dateTo, onData }: { siteUrl: string; da
                 <thead><tr>
                   <th>Channel</th>
                   <th style={{textAlign:"right"}}>Sessions</th>
-                  <th style={{textAlign:"right"}}>Purchases</th>
-                  <th style={{textAlign:"right"}}>Conv. Rate</th>
+                  <th style={{textAlign:"right"}}>Users</th>
+                  <th style={{textAlign:"right"}}>Eng. Rate</th>
                   <th style={{textAlign:"center"}}>Status</th>
                 </tr></thead>
                 <tbody>
-                  {(data.channelPerformance || []).map((c: any, i: number) => {
-                    const avgConv = data.channelPerformance?.length > 0
-                      ? data.channelPerformance.reduce((s: number, x: any) => s + x.convRate, 0) / data.channelPerformance.length
+                  {(data.channels || []).map((c: any, i: number) => {
+                    const avgEng = data.channels?.length > 0
+                      ? data.channels.reduce((s: number, x: any) => s + x.engRate, 0) / data.channels.length
                       : 0;
-                    const status = c.convRate >= avgConv * 1.2 ? "Converting well" : c.convRate >= avgConv * 0.8 ? "Average" : "Below par";
-                    const statusStyle = status === "Converting well"
-                      ? {bg:"#EDF7F3",color:"var(--teal)"}
+                    const status = c.engRate >= avgEng * 1.2 ? "Engaging well" : c.engRate >= avgEng * 0.8 ? "Average" : "Below par";
+                    const statusStyle = status === "Engaging well"
+                      ? {bg:"#EDF7F3", color:"var(--teal)"}
                       : status === "Average"
-                      ? {bg:"#FEF3E2",color:"#B07C20"}
-                      : {bg:"#FDF0EF",color:"var(--rose)"};
+                      ? {bg:"#FEF3E2", color:"#B07C20"}
+                      : {bg:"#FDF0EF", color:"var(--rose)"};
                     return (
                       <tr key={i}>
-                        <td style={{fontWeight:500,color:"var(--text)"}}>{c.channel}</td>
-                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fNum(c.sessions)}</td>
-                        <td style={{textAlign:"right",color:"var(--text)"}}>{c.purchases}</td>
-                        <td style={{textAlign:"right",color:"var(--text)"}}>{c.convRate}%</td>
+                        <td style={{fontWeight:500, color:"var(--text)"}}>{c.channel}</td>
+                        <td style={{textAlign:"right", color:"var(--text-muted)"}}>{fNum(c.sessions)}</td>
+                        <td style={{textAlign:"right", color:"var(--text-muted)"}}>{fNum(c.users)}</td>
+                        <td style={{textAlign:"right"}}>
+                          <span style={{fontSize:11, fontWeight:600, padding:"2px 7px", borderRadius:4,
+                            background:c.engRate>=60?"#EDF7F3":c.engRate>=40?"#FEF3E2":"#FDF0EF",
+                            color:c.engRate>=60?"var(--teal)":c.engRate>=40?"#B07C20":"var(--rose)"}}>
+                            {c.engRate}%
+                          </span>
+                        </td>
                         <td style={{textAlign:"center"}}>
-                          <span style={{fontSize:10,fontWeight:600,padding:"2px 10px",borderRadius:4,background:statusStyle.bg,color:statusStyle.color}}>{status}</span>
+                          <span style={{fontSize:10, fontWeight:600, padding:"2px 10px", borderRadius:4, background:statusStyle.bg, color:statusStyle.color}}>{status}</span>
                         </td>
                       </tr>
                     );
