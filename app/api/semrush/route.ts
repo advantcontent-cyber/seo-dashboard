@@ -4,7 +4,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { clientName, topQueries, topPages } = body;
 
-  const queryData = (topQueries || []).map((q: any) =>
+  const queryData = (topQueries || []).slice(0, 10).map((q: any) =>
     `"${q.query}": ${q.clicks} clicks, ${q.impressions} impressions, CTR ${q.ctr}%, pos #${q.position}`
   ).join("\n");
 
@@ -29,25 +29,27 @@ Then provide:
 - Content recommendations to improve AIO inclusion
 - An overall AIO readiness score out of 100
 
+Keep responses concise. Max 3 items per array. Short sentences only.
+
 Respond ONLY with a JSON object, no markdown, no extra text:
 {
   "aioScore": 65,
   "aioScoreLabel": "Moderate",
-  "summary": "One paragraph summary of AIO situation for this client",
+  "summary": "Two sentence summary max",
   "likelyInAIO": [
-    {"query": "query text", "position": 3, "impressions": 500, "reason": "why likely cited"}
+    {"query": "query text", "position": 3, "impressions": 500, "reason": "brief reason"}
   ],
   "likelyMissing": [
-    {"query": "query text", "position": 12, "impressions": 300, "reason": "why missing", "action": "what to do"}
+    {"query": "query text", "position": 12, "impressions": 300, "reason": "brief reason", "action": "brief action"}
   ],
   "notAIO": [
-    {"query": "query text", "reason": "brand/navigational/transactional"}
+    {"query": "query text", "reason": "brief reason"}
   ],
   "contentRecommendations": [
-    {"title": "specific content piece", "type": "FAQ|Guide|Comparison|Landing", "targetQuery": "query it targets", "rationale": "why this helps AIO"}
+    {"title": "content title", "type": "FAQ", "targetQuery": "query", "rationale": "brief rationale"}
   ],
   "quickWins": [
-    {"action": "specific action", "impact": "high|medium|low", "effort": "high|medium|low"}
+    {"action": "brief action", "impact": "high", "effort": "low"}
   ]
 }`;
 

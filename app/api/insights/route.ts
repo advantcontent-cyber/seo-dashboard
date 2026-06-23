@@ -4,11 +4,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { clientName, summary, topQueries, topPages, byDevice } = body;
 
-  const queryData = (topQueries || []).map((q: any) =>
+  const queryData = (topQueries || []).slice(0, 8).map((q: any) =>
     `"${q.query}": ${q.clicks} clicks, ${q.impressions} impressions, CTR ${q.ctr}%, pos #${q.position}`
   ).join("\n");
 
-  const pageData = (topPages || []).map((p: any) =>
+  const pageData = (topPages || []).slice(0, 5).map((p: any) =>
     `${p.page}: ${p.clicks} clicks, ${p.impressions} impressions, CTR ${p.ctr}%, pos #${p.position}`
   ).join("\n");
 
