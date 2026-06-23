@@ -2,88 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { clientName, summary, topQueries, topPages, byDevice } = body;
+  const { clientName, summary, topQueries, topPages } = body;
 
-  const queryData = (topQueries || []).slice(0, 8).map((q: any) =>
-    `"${q.query}": ${q.clicks} clicks, ${q.impressions} impressions, CTR ${q.ctr}%, pos #${q.position}`
-  ).join("\n");
+  const queries = (topQueries || []).slice(0, 10).map((q: any) =>
+    `"${q.query}" pos#${q.position} ${q.impressions}impr CTR${q.ctr}%`
+  ).join(", ");
 
-  const pageData = (topPages || []).slice(0, 5).map((p: any) =>
-    `${p.page}: ${p.clicks} clicks, ${p.impressions} impressions, CTR ${p.ctr}%, pos #${p.position}`
-  ).join("\n");
+  const pages = (topPages || []).slice(0, 5).map((p: any) =>
+    `${p.page?.replace(/^https?:\/\/[^/]+/, "") || "/"} pos#${p.position} ${p.clicks}clicks`
+  ).join(", ");
 
-  const prompt1 = `You are an expert SEO analyst for Advant AI, a luxury hotel digital marketing agency.
+  const prompt = `SEO analyst for Advant AI luxury hotel agency. Analyze GSC data for ${clientName} and return EXACTLY 8 action items as a JSON array.
 
-Analyze this Google Search Console data for ${clientName}:
+DATA:
+Clicks: ${summary.clicks} (${summary.change.clicks > 0 ? "+" : ""}${summary.change.clicks}%)
+Impressions: ${summary.impressions} (${summary.change.impressions > 0 ? "+" : ""}${summary.change.impressions}%)
+CTR: ${summary.ctr}% | Avg Position: #${summary.position}
+Top queries: ${queries}
+Top pages: ${pages}
 
-SUMMARY (vs prev period):
-- Clicks: ${summary.clicks} (${summary.change.clicks > 0 ? "+" : ""}${summary.change.clicks}%)
-- Impressions: ${summary.impressions} (${summary.change.impressions > 0 ? "+" : ""}${summary.change.impressions}%)
-- CTR: ${summary.ctr}% (${summary.change.ctr > 0 ? "+" : ""}${summary.change.ctr}%)
-- Avg Position: #${summary.position}
+Return ONLY a raw JSON array, no markdown, no explanation:
+[{"action":"specific action","query":"target keyword","type":"GEO|CONTENT|ON-PAGE|TECHNICAL","impact":"High|Medium|Low","effort":"Low|Medium|High","category":"AI Overview|Quick Win|Content Gap|CTR|Rankings"}]
 
-TOP QUERIES:
-${queryData}
+Rules: Keep action under 10 words. Mix GEO and CONTENT types. Prioritize high impact low effort first.`;
 
-TOP PAGES:
-${pageData}
-
-DEVICE SPLIT:
-${(byDevice || []).map((d: any) => `${d.device}: ${d.clicks} clicks, CTR ${d.ctr}%`).join("\n")}
-
-Analyze this data and:
-1. Identify queries with strong impressions but low rankings (pos 11-30) — quick win opportunities
-2. Highlight queries where ranking is close to page 1 (pos 8-15) — low-hanging fruit
-3. Group queries into topic clusters relevant to luxury hospitality
-4. Identify missed opportunities (high impressions, low CTR or weak page)
-5. Suggest content strategy (pages to create or update, type: guide/landing/blog/comparison)
-6. Focus only on meaningful patterns, ignore random fluctuations
-
-Respond ONLY with a JSON object, no markdown, no extra text:
-{
-  "quickWins": [
-    {"query": "query text", "position": 12, "impressions": 500, "action": "specific action"}
-  ],
-  "clusters": [
-    {"topic": "cluster name", "queries": ["q1", "q2"], "opportunity": "what to do"}
-  ],
-  "contentGaps": [
-    {"title": "page to create", "type": "guide", "rationale": "why this matters"}
-  ],
-  "brightspots": [
-    {"title": "short title", "detail": "one specific insight with data"}
-  ],
-  "criticalIssues": [
-    {"title": "short title", "detail": "one specific issue with data"}
-  ],
-  "headline": "One sentence summary of SEO situation"
-}`;
-
-  const prompt2 = (firstOutput: string) => `Act like an experienced SEO strategist for a luxury hotel brand.
-
-Here is the initial SEO analysis for ${clientName}:
-${firstOutput}
-
-Challenge these recommendations and:
-1. Identify weak assumptions or gaps in the analysis
-2. Highlight any missed opportunities
-3. What are top-ranking competitor pages likely doing better?
-4. Re-prioritize for maximum impact
-5. Simplify into a focused, high-ROI action plan
-
-Respond ONLY with a JSON object, no markdown, no extra text:
-{
-  "actionPlan": [
-    {"priority": 1, "action": "specific executable action", "impact": "high", "effort": "low", "rationale": "why this over others"}
-  ],
-  "missedOpportunities": [
-    {"opportunity": "what was missed", "recommendation": "what to do instead"}
-  ],
-  "competitorEdge": "What top-ranking pages are likely doing better in one paragraph",
-  "focusStatement": "The single most important thing to do right now in one sentence"
-}`;
-
-  async function callClaude(prompt: string) {
+  try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -94,19 +37,16 @@ Respond ONLY with a JSON object, no markdown, no extra text:
       },
       body: JSON.stringify({
         model: "anthropic/claude-haiku-4.5",
-        max_tokens: 2000,
+        max_tokens: 800,
         messages: [{ role: "user", content: prompt }],
       }),
     });
-    const data = await res.json();
-    const text = data.choices?.[0]?.message?.content || "{}";
-    return JSON.parse(text.replace(/```json|```/g, "").trim());
-  }
 
-  try {
-    const pass1 = await callClaude(prompt1);
-    const pass2 = await callClaude(prompt2(JSON.stringify(pass1)));
-    return NextResponse.json({ ...pass1, ...pass2 });
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || "[]";
+    const clean = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(clean);
+    return NextResponse.json({ items: Array.isArray(parsed) ? parsed : [] });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
