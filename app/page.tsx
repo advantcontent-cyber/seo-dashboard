@@ -438,83 +438,106 @@ function GA4Section({ siteUrl, dateFrom, dateTo, onData }: { siteUrl: string; da
             </ResponsiveContainer>
           </div>
 
-          {/* Channel + Top pages */}
-          <div className="two-col">
-            <div className="card">
-              <div className="card-eyebrow">Traffic Sources</div>
-              <div className="card-title">Channel Performance</div>
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead><tr>
-                    <th>Channel</th>
-                    <th style={{textAlign:"right"}}>Sessions</th>
-                    <th style={{textAlign:"right"}}>Users</th>
-                    <th style={{textAlign:"right"}}>Eng. Rate</th>
-                  </tr></thead>
-                  <tbody>
-                    {(data.channels || []).map((c: any, i: number) => (
-                      <tr key={i}>
-                        <td style={{color:"var(--text)",fontWeight:500,fontSize:13}}>{c.channel}</td>
-                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fNum(c.sessions)}</td>
-                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fNum(c.users)}</td>
-                        <td style={{textAlign:"right"}}>
-                          <span style={{fontSize:11,fontWeight:600,padding:"2px 7px",borderRadius:4,
-                            background:c.engRate>=60?"#EDF7F3":c.engRate>=40?"#FEF3E2":"#FDF0EF",
-                            color:c.engRate>=60?"var(--teal)":c.engRate>=40?"#B07C20":"var(--rose)"}}>
-                            {c.engRate}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-eyebrow">Top Content</div>
-              <div className="card-title">Top Pages (GA4)</div>
-              <div className="table-wrap">
-                <table className="data-table">
-                  <thead><tr>
-                    <th>Page</th>
-                    <th style={{textAlign:"right"}}>Views</th>
-                    <th style={{textAlign:"right"}}>Duration</th>
-                  </tr></thead>
-                  <tbody>
-                    {(data.topPages || []).slice(0,8).map((p: any, i: number) => (
-                      <tr key={i}>
-                        <td><span className="page-text" title={p.page}>{p.page}</span></td>
-                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fNum(p.pageviews)}</td>
-                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fDur(p.avgDuration)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Device split */}
+          {/* Booking Funnel */}
           <div className="card">
-            <div className="card-eyebrow">Audience</div>
-            <div className="card-title">Device Split</div>
-            <div className="device-row">
-              {(data.devices || []).map((d: any, i: number) => {
-                const total = (data.devices || []).reduce((s: number, x: any) => s + x.sessions, 0) || 1;
-                const colors = ["#2A6B5E", "#C9A96E", "#1C1C1C"];
+            <div className="card-eyebrow">Conversion Path</div>
+            <div className="card-title">Booking Funnel</div>
+            <div style={{display:"flex",flexDirection:"column" as const,gap:8}}>
+              {(data.funnel || []).map((step: any, i: number, arr: any[]) => {
+                const pct = i === 0 ? 100 : arr[0].count > 0 ? Math.round((step.count/arr[0].count)*100) : 0;
+                const drop = i > 0 && arr[i-1].count > 0 ? Math.round(((arr[i-1].count - step.count)/arr[i-1].count)*100) : 0;
+                const barColor = i === 0 ? "var(--teal)" : drop > 80 ? "var(--rose)" : drop > 50 ? "#B07C20" : "var(--teal)";
                 return (
-                  <div key={i} className="device-bar-row">
-                    <div className="device-bar-label">
-                      <span className="device-bar-name" style={{textTransform:"capitalize"}}>{d.device}</span>
-                      <span className="device-bar-val">{fNum(d.sessions)} sessions · {Math.round((d.sessions/total)*100)}%</span>
-                    </div>
-                    <div className="device-bar-track">
-                      <div className="device-bar-fill" style={{width:`${(d.sessions/total)*100}%`,background:colors[i%colors.length]}}/>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:22,height:22,borderRadius:"50%",background:"var(--cream-dark)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--text-muted)",flexShrink:0}}>{i+1}</div>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                        <span style={{fontSize:12,fontWeight:500,color:"var(--text)"}}>{step.label}</span>
+                        <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                          {i > 0 && <span style={{fontSize:10,color:"var(--rose)",fontWeight:600}}>▼ {drop}% drop</span>}
+                          <span style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{fNum(step.count)}</span>
+                          <span style={{fontSize:10,color:"var(--text-muted)"}}>{pct}% of sessions</span>
+                        </div>
+                      </div>
+                      <div style={{height:6,background:"var(--cream-dark)",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${pct}%`,background:barColor,borderRadius:3,transition:"width 0.6s ease"}}/>
+                      </div>
                     </div>
                   </div>
                 );
               })}
+              {data.funnel?.length > 0 && (
+                <div style={{marginTop:4,padding:"10px 14px",background:"var(--cream)",borderRadius:8,fontSize:12,color:"var(--text-muted)"}}>
+                  {(() => {
+                    const f = data.funnel;
+                    const worstIdx = f.slice(1).reduce((wi: number, s: any, i: number, arr: any[]) => {
+                      const prevCount = f[i].count;
+                      const drop = prevCount > 0 ? (prevCount - s.count)/prevCount : 0;
+                      const worstDrop = f[wi].count > 0 ? (f[wi].count - f[wi+1]?.count || 0)/f[wi].count : 0;
+                      return drop > worstDrop ? i : wi;
+                    }, 0);
+                    const worst = f[worstIdx+1];
+                    const prev = f[worstIdx];
+                    const drop = prev.count > 0 ? Math.round(((prev.count-worst.count)/prev.count)*100) : 0;
+                    return `Biggest drop-off: ${prev.label} → ${worst.label}, losing ${drop}% of users — priority stage to fix.`;
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Channel Performance */}
+          <div className="card">
+            <div className="card-eyebrow">Traffic Sources</div>
+            <div className="card-title">Channel Performance</div>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr>
+                  <th>Channel</th>
+                  <th style={{textAlign:"right"}}>Sessions</th>
+                  <th style={{textAlign:"right"}}>Purchases</th>
+                  <th style={{textAlign:"right"}}>Conv. Rate</th>
+                  <th style={{textAlign:"center"}}>Status</th>
+                </tr></thead>
+                <tbody>
+                  {(data.channelPerformance || []).map((c: any, i: number) => {
+                    const avgConv = data.channelPerformance?.length > 0
+                      ? data.channelPerformance.reduce((s: number, x: any) => s + x.convRate, 0) / data.channelPerformance.length
+                      : 0;
+                    const status = c.convRate >= avgConv * 1.2 ? "Converting well" : c.convRate >= avgConv * 0.8 ? "Average" : "Below par";
+                    const statusStyle = status === "Converting well"
+                      ? {bg:"#EDF7F3",color:"var(--teal)"}
+                      : status === "Average"
+                      ? {bg:"#FEF3E2",color:"#B07C20"}
+                      : {bg:"#FDF0EF",color:"var(--rose)"};
+                    return (
+                      <tr key={i}>
+                        <td style={{fontWeight:500,color:"var(--text)"}}>{c.channel}</td>
+                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fNum(c.sessions)}</td>
+                        <td style={{textAlign:"right",color:"var(--text)"}}>{c.purchases}</td>
+                        <td style={{textAlign:"right",color:"var(--text)"}}>{c.convRate}%</td>
+                        <td style={{textAlign:"center"}}>
+                          <span style={{fontSize:10,fontWeight:600,padding:"2px 10px",borderRadius:4,background:statusStyle.bg,color:statusStyle.color}}>{status}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Key Events */}
+          <div className="card">
+            <div className="card-eyebrow">User Actions</div>
+            <div className="card-title">Key Events</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+              {(data.keyEvents || []).map((e: any, i: number) => (
+                <div key={i} style={{background:"var(--cream)",borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{fontFamily:"Playfair Display, serif",fontSize:22,fontWeight:500,color:"var(--text)"}}>{fNum(e.count)}</div>
+                  <div style={{fontSize:10,fontWeight:600,color:"var(--text-muted)",marginTop:4,textTransform:"uppercase" as const,letterSpacing:"0.06em"}}>{e.name}</div>
+                </div>
+              ))}
             </div>
           </div>
         </>

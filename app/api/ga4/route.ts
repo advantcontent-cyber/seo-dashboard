@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
 
   if (!apiKey) return NextResponse.json({ error: "WINDSOR_API_KEY not configured" }, { status: 500 });
 
-  const propertyId = GA4_PROPERTIES[siteUrl] || GA4_PROPERTIES[siteUrl.replace(/\/$/, "") + "/"];
+  const normalizedUrl = siteUrl.endsWith("/") ? siteUrl : siteUrl + "/";
+  const propertyId = GA4_PROPERTIES[siteUrl] || GA4_PROPERTIES[normalizedUrl];
   if (!propertyId) return NextResponse.json({ error: "No GA4 property configured for this site" }, { status: 404 });
 
   if (!dateFrom || !dateTo) {
@@ -44,7 +45,6 @@ export async function GET(req: NextRequest) {
     dateFrom = d.toISOString().split("T")[0];
   }
 
-  // Previous period
   const span = Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000);
   const prevTo = new Date(dateFrom); prevTo.setDate(prevTo.getDate() - 1);
   const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - span);
@@ -54,13 +54,15 @@ export async function GET(req: NextRequest) {
   const extraPrev = { date_from: fmt(prevFrom), date_to: fmt(prevTo), property_id: propertyId };
 
   try {
-    const [curr, prev, byChannel, byPage, byDate, byDevice] = await Promise.all([
+    const [curr, prev, byChannel, byPage, byDate, byDevice, byEvent, byChannelEvent] = await Promise.all([
       windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration,screen_page_views", extra),
       windsor(apiKey, "sessions,active_users,engaged_sessions,average_session_duration", extraPrev),
       windsor(apiKey, "session_default_channel_group,sessions,active_users,engaged_sessions", extra),
       windsor(apiKey, "page_path,screen_page_views,active_users,average_session_duration,engaged_sessions", extra),
       windsor(apiKey, "date,sessions,active_users", extra),
       windsor(apiKey, "deviceCategory,sessions,active_users", extra),
+      windsor(apiKey, "event_name,event_count", extra),
+      windsor(apiKey, "session_default_channel_group,event_name,event_count,sessions", extra),
     ]);
 
     const cs = sumF(curr, "sessions"), cu = sumF(curr, "active_users");
@@ -68,7 +70,6 @@ export async function GET(req: NextRequest) {
     const cpv = sumF(curr, "screen_page_views");
     const ps = sumF(prev, "sessions"), pu = sumF(prev, "active_users");
     const pe = sumF(prev, "engaged_sessions"), pd = avgF(prev, "average_session_duration");
-
     const engRate = cs > 0 ? Math.round((ce / cs) * 100) : 0;
     const prevEngRate = ps > 0 ? Math.round((pe / ps) * 100) : 0;
 
@@ -82,9 +83,7 @@ export async function GET(req: NextRequest) {
       chMap[ch].engaged += parseFloat(r.engaged_sessions) || 0;
     }
     const channels = Object.values(chMap).map((c: any) => ({
-      channel: c.channel,
-      sessions: Math.round(c.sessions),
-      users: Math.round(c.users),
+      channel: c.channel, sessions: Math.round(c.sessions), users: Math.round(c.users),
       engRate: c.sessions > 0 ? Math.round((c.engaged / c.sessions) * 100) : 0,
     })).sort((a, b) => b.sessions - a.sessions);
 
@@ -92,19 +91,17 @@ export async function GET(req: NextRequest) {
     const pgMap: Record<string, any> = {};
     for (const r of byPage) {
       const p = r.page_path; if (!p) continue;
-      if (!pgMap[p]) pgMap[p] = { page: p, screen_page_views: 0, users: 0, durations: [], engaged: 0 };
-      pgMap[p].screen_page_views += parseFloat(r.screen_page_views) || 0;
+      if (!pgMap[p]) pgMap[p] = { page: p, pageviews: 0, users: 0, durations: [], engaged: 0 };
+      pgMap[p].pageviews += parseFloat(r.screen_page_views) || 0;
       pgMap[p].users += parseFloat(r.active_users) || 0;
       pgMap[p].durations.push(parseFloat(r.average_session_duration) || 0);
       pgMap[p].engaged += parseFloat(r.engaged_sessions) || 0;
     }
     const topPages = Object.values(pgMap).map((p: any) => ({
-      page: p.page,
-      screen_page_views: Math.round(p.screen_page_views),
-      users: Math.round(p.users),
+      page: p.page, pageviews: Math.round(p.pageviews), users: Math.round(p.users),
       avgDuration: Math.round(p.durations.reduce((a: number, b: number) => a + b, 0) / (p.durations.length || 1)),
-      engRate: p.screen_page_views > 0 ? Math.round((p.engaged / p.screen_page_views) * 100) : 0,
-    })).sort((a, b) => b.screen_page_views - a.screen_page_views).slice(0, 10);
+      engRate: p.pageviews > 0 ? Math.round((p.engaged / p.pageviews) * 100) : 0,
+    })).sort((a, b) => b.pageviews - a.pageviews).slice(0, 10);
 
     // Trend
     const dMap: Record<string, any> = {};
@@ -121,7 +118,7 @@ export async function GET(req: NextRequest) {
     // Devices
     const devMap: Record<string, any> = {};
     for (const r of byDevice) {
-      const dev = r.deviceCategory || "other";
+      const dev = r.deviceCategory || r.device_category || "other";
       if (!devMap[dev]) devMap[dev] = { device: dev, sessions: 0, users: 0 };
       devMap[dev].sessions += parseFloat(r.sessions) || 0;
       devMap[dev].users += parseFloat(r.active_users) || 0;
@@ -130,11 +127,53 @@ export async function GET(req: NextRequest) {
       device: d.device, sessions: Math.round(d.sessions), users: Math.round(d.users),
     })).sort((a, b) => b.sessions - a.sessions);
 
+    // Events
+    const eventMap: Record<string, number> = {};
+    for (const r of byEvent) {
+      const name = r.event_name; if (!name) continue;
+      eventMap[name] = (eventMap[name] || 0) + (parseFloat(r.event_count) || 0);
+    }
+
+    // Booking funnel
+    const funnel = [
+      { label: "Sessions", count: Math.round(cs) },
+      { label: "Room Views", count: Math.round(eventMap["view_item_list"] || 0) },
+      { label: "Check Availability", count: Math.round(eventMap["check_availability"] || 0) },
+      { label: "Begin Checkout", count: Math.round(eventMap["begin_checkout"] || 0) },
+      { label: "Purchase / Booking", count: Math.round(eventMap["purchase"] || 0) },
+    ];
+
+    // Key events
+    const keyEvents = [
+      { name: "Generate Lead", count: Math.round((eventMap["generate_lead"] || 0) + (eventMap["form_submit"] || 0)) },
+      { name: "Book Your Stay", count: Math.round(eventMap["Click Book Your Stay"] || 0) },
+      { name: "Offer Booked", count: Math.round(eventMap["offer_book"] || 0) },
+      { name: "Add to Cart", count: Math.round(eventMap["add_to_cart"] || 0) },
+      { name: "WhatsApp Click", count: Math.round(eventMap["whatsapp_click"] || 0) },
+      { name: "Call Click", count: Math.round(eventMap["call_click"] || 0) },
+    ].filter(e => e.count > 0).sort((a, b) => b.count - a.count);
+
+    // Channel + purchase performance
+    const chEventMap: Record<string, any> = {};
+    for (const r of byChannelEvent) {
+      const ch = r.session_default_channel_group || "Other";
+      const ev = r.event_name;
+      if (!chEventMap[ch]) chEventMap[ch] = { sessions: 0, purchases: 0 };
+      chEventMap[ch].sessions += parseFloat(r.sessions) || 0;
+      if (ev === "purchase") chEventMap[ch].purchases += parseFloat(r.event_count) || 0;
+    }
+    const channelPerformance = Object.entries(chEventMap).map(([channel, d]: [string, any]) => ({
+      channel,
+      sessions: Math.round(d.sessions),
+      purchases: Math.round(d.purchases),
+      convRate: d.sessions > 0 ? Math.round((d.purchases / d.sessions) * 1000) / 10 : 0,
+    })).sort((a, b) => b.sessions - a.sessions);
+
     return NextResponse.json({
       summary: {
         sessions: Math.round(cs), users: Math.round(cu),
         engagedSessions: Math.round(ce), engRate,
-        avgDuration: Math.round(cd), screen_page_views: Math.round(cpv),
+        avgDuration: Math.round(cd), pageviews: Math.round(cpv),
         change: {
           sessions: pct(cs, ps), users: pct(cu, pu),
           engRate: pct(engRate, prevEngRate),
@@ -142,6 +181,7 @@ export async function GET(req: NextRequest) {
         },
       },
       channels, topPages, trend, devices,
+      funnel, keyEvents, channelPerformance,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
