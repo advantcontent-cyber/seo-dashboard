@@ -322,6 +322,199 @@ function AIActionTable({ data, clientName }: { data: any; clientName: string }) 
   );
 }
 
+// ── GA4 Section ───────────────────────────────────────────────────────────────
+function GA4Section({ siteUrl, dateFrom, dateTo }: { siteUrl: string; dateFrom: string; dateTo: string }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!siteUrl) return;
+    setLoading(true); setError(null); setData(null);
+    try {
+      const params = new URLSearchParams({ site: siteUrl, date_from: dateFrom, date_to: dateTo });
+      const res = await fetch(`/api/ga4?${params}`);
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setData(json);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [siteUrl, dateFrom, dateTo]);
+
+  useEffect(() => { load(); }, [siteUrl, dateFrom, dateTo]);
+
+  function fNum(n: number) { if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"; if (n >= 1000) return (n / 1000).toFixed(1) + "K"; return Math.round(n).toString(); }
+  function fDur(s: number) { return `${Math.floor(s / 60)}m ${Math.floor(s % 60)}s`; }
+
+  const s = data?.summary;
+
+  const TT = { background: "white", border: "1px solid #DDD5C4", borderRadius: 8, fontSize: 12 };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column" as const, gap: 16 }}>
+
+      {/* GA4 Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div className="card-eyebrow">Google Analytics 4</div>
+          <div style={{ fontFamily: "Playfair Display, serif", fontSize: 17, fontWeight: 500, color: "var(--text)" }}>Audience & Engagement</div>
+        </div>
+        <button className="btn-refresh" onClick={load} disabled={loading} style={{ fontSize: 11, padding: "5px 11px" }}>
+          <RefreshCw size={11} />{loading ? "Loading..." : "Refresh"}
+        </button>
+      </div>
+
+      {loading && <div className="ai-loading"><div className="ai-spinner" />Fetching GA4 data...</div>}
+      {error && (
+        <div style={{ background: "#FDF0EF", border: "1px solid #F0C9C6", borderRadius: 8, padding: "12px 16px", fontSize: 12, color: "var(--rose)" }}>
+          ⚠ {error.includes("No GA4 property") ? "GA4 not configured for this client yet." : error}
+        </div>
+      )}
+
+      {s && !loading && (
+        <>
+          {/* GA4 KPI row */}
+          <div className="kpi-grid">
+            <div className="kpi-card">
+              <div className="kpi-label">Sessions</div>
+              <div className="kpi-value">{fNum(s.sessions)}</div>
+              <div className={`kpi-change ${s.change.sessions >= 0 ? "up" : "down"}`}>
+                {s.change.sessions >= 0 ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
+                <span>{Math.abs(s.change.sessions)}% vs prev</span>
+              </div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-label">Active Users</div>
+              <div className="kpi-value">{fNum(s.users)}</div>
+              <div className={`kpi-change ${s.change.users >= 0 ? "up" : "down"}`}>
+                {s.change.users >= 0 ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
+                <span>{Math.abs(s.change.users)}% vs prev</span>
+              </div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-label">Engagement Rate</div>
+              <div className="kpi-value">{s.engRate}%</div>
+              <div className={`kpi-change ${s.change.engRate >= 0 ? "up" : "down"}`}>
+                {s.change.engRate >= 0 ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
+                <span>{Math.abs(s.change.engRate)}% vs prev</span>
+              </div>
+              <div className="kpi-sub">Engaged / total sessions</div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-label">Avg Session Duration</div>
+              <div className="kpi-value">{fDur(s.avgDuration)}</div>
+              <div className={`kpi-change ${s.change.avgDuration >= 0 ? "up" : "down"}`}>
+                {s.change.avgDuration >= 0 ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
+                <span>{Math.abs(s.change.avgDuration)}% vs prev</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sessions trend */}
+          <div className="card">
+            <div className="card-eyebrow">Traffic Trend</div>
+            <div className="card-title">Sessions Over Time</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={data.trend}>
+                <defs>
+                  <linearGradient id="ga4g1" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2A6B5E" stopOpacity={0.15}/><stop offset="95%" stopColor="#2A6B5E" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#EDE6D8"/>
+                <XAxis dataKey="date" tick={{fill:"#9A9080",fontSize:10}}/>
+                <YAxis tick={{fill:"#9A9080",fontSize:10}}/>
+                <Tooltip contentStyle={TT}/>
+                <Area type="monotone" dataKey="sessions" stroke="#2A6B5E" fill="url(#ga4g1)" strokeWidth={2} name="Sessions"/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Channel + Top pages */}
+          <div className="two-col">
+            <div className="card">
+              <div className="card-eyebrow">Traffic Sources</div>
+              <div className="card-title">Channel Performance</div>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead><tr>
+                    <th>Channel</th>
+                    <th style={{textAlign:"right"}}>Sessions</th>
+                    <th style={{textAlign:"right"}}>Users</th>
+                    <th style={{textAlign:"right"}}>Eng. Rate</th>
+                  </tr></thead>
+                  <tbody>
+                    {(data.channels || []).map((c: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{color:"var(--text)",fontWeight:500,fontSize:13}}>{c.channel}</td>
+                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fNum(c.sessions)}</td>
+                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fNum(c.users)}</td>
+                        <td style={{textAlign:"right"}}>
+                          <span style={{fontSize:11,fontWeight:600,padding:"2px 7px",borderRadius:4,
+                            background:c.engRate>=60?"#EDF7F3":c.engRate>=40?"#FEF3E2":"#FDF0EF",
+                            color:c.engRate>=60?"var(--teal)":c.engRate>=40?"#B07C20":"var(--rose)"}}>
+                            {c.engRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-eyebrow">Top Content</div>
+              <div className="card-title">Top Pages (GA4)</div>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead><tr>
+                    <th>Page</th>
+                    <th style={{textAlign:"right"}}>Views</th>
+                    <th style={{textAlign:"right"}}>Duration</th>
+                  </tr></thead>
+                  <tbody>
+                    {(data.topPages || []).slice(0,8).map((p: any, i: number) => (
+                      <tr key={i}>
+                        <td><span className="page-text" title={p.page}>{p.page}</span></td>
+                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fNum(p.pageviews)}</td>
+                        <td style={{textAlign:"right",color:"var(--text-muted)"}}>{fDur(p.avgDuration)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Device split */}
+          <div className="card">
+            <div className="card-eyebrow">Audience</div>
+            <div className="card-title">Device Split</div>
+            <div className="device-row">
+              {(data.devices || []).map((d: any, i: number) => {
+                const total = (data.devices || []).reduce((s: number, x: any) => s + x.sessions, 0) || 1;
+                const colors = ["#2A6B5E", "#C9A96E", "#1C1C1C"];
+                return (
+                  <div key={i} className="device-bar-row">
+                    <div className="device-bar-label">
+                      <span className="device-bar-name" style={{textTransform:"capitalize"}}>{d.device}</span>
+                      <span className="device-bar-val">{fNum(d.sessions)} sessions · {Math.round((d.sessions/total)*100)}%</span>
+                    </div>
+                    <div className="device-bar-track">
+                      <div className="device-bar-fill" style={{width:`${(d.sessions/total)*100}%`,background:colors[i%colors.length]}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, change, sub, inverseGood }: any) {
   const pos = change > 0;
@@ -627,6 +820,11 @@ export default function Dashboard() {
                   {key:"ctr",label:"CTR",align:"right",render:(v:number)=>v+"%"},
                 ]} rows={data.byCountry||[]} empty="No country data"/>
               </div>
+            </div>
+
+            {/* GA4 divider */}
+            <div style={{borderTop:"2px solid var(--cream-border)", paddingTop:8}}>
+              <GA4Section siteUrl={activeUrl} dateFrom={dateFrom} dateTo={dateTo} />
             </div>
 
             <div style={{textAlign:"center",color:"var(--text-dim)",fontSize:11,paddingBottom:8}}>
