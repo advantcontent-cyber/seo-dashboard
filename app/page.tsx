@@ -114,6 +114,100 @@ function ClientDropdown({ sites, activeUrl, onChange }: { sites: any[]; activeUr
   );
 }
 
+// ── Period Summary ───────────────────────────────────────────────────────────
+function PeriodSummary({ data, clientName }: { data: any; clientName: string }) {
+  const [summary, setSummary] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = useCallback(async () => {
+    if (!data) return;
+    setLoading(true); setError(null); setSummary(null);
+    try {
+      const res = await fetch("/api/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientName, ...data }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setSummary(json);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [clientName, data?.summary?.clicks]);
+
+  useEffect(() => { if (data) generate(); }, [clientName, data?.summary?.clicks]);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div>
+          <div className="card-eyebrow">Claude AI · {data?.dateFrom} → {data?.dateTo}</div>
+          <div className="card-title">Performance Summary</div>
+        </div>
+        <button className="btn-refresh" onClick={generate} disabled={loading} style={{ fontSize: 11, padding: "5px 11px" }}>
+          <RefreshCw size={11} />{loading ? "Generating..." : "Regenerate"}
+        </button>
+      </div>
+
+      {loading && <div className="ai-loading"><div className="ai-spinner" />Summarising with Claude...</div>}
+      {error && <div style={{ color: "var(--rose)", fontSize: 12 }}>⚠ {error}</div>}
+
+      {summary && !loading && (
+        <>
+          {/* Headline */}
+          {summary.headline && (
+            <div style={{ fontSize: 13.5, color: "var(--text)", lineHeight: 1.7, padding: "13px 16px", background: "var(--cream)", borderRadius: 0, borderLeft: "3px solid var(--gold)", fontStyle: "italic" }}>
+              {summary.headline}
+            </div>
+          )}
+
+          {/* Working + Watch out */}
+          <div className="two-col">
+            <div style={{ background: "#EDF7F3", border: "1px solid #C5E4D8", borderRadius: 10, padding: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
+                <span style={{ fontSize: 13 }}>✦</span>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--teal)" }}>What&apos;s working</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 9 }}>
+                {(summary.working || []).map((w: string, i: number) => (
+                  <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+                    <span style={{ minWidth: 18, height: 18, background: "var(--teal)", color: "white", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginTop: 1, flexShrink: 0 }}>{i + 1}</span>
+                    <span style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5 }}>{w}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: "#FDF0EF", border: "1px solid #F0C9C6", borderRadius: 10, padding: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
+                <span style={{ fontSize: 13 }}>▲</span>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--rose)" }}>Watch out for</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 9 }}>
+                {(summary.watchout || []).map((w: string, i: number) => (
+                  <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+                    <span style={{ minWidth: 18, height: 18, background: "var(--rose)", color: "white", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginTop: 1, flexShrink: 0 }}>{i + 1}</span>
+                    <span style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.5 }}>{w}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Priority */}
+          {summary.priority && (
+            <div style={{ display: "flex", gap: 12, padding: "13px 16px", background: "var(--cream)", borderRadius: 8, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 4, background: "var(--text)", color: "var(--cream)", whiteSpace: "nowrap" as const, marginTop: 1 }}>TOP PRIORITY</span>
+              <span style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>{summary.priority}</span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── AI Action Table ───────────────────────────────────────────────────────────
 function AIActionTable({ data, clientName }: { data: any; clientName: string }) {
   const [items, setItems] = useState<any[]>([]);
@@ -421,6 +515,8 @@ export default function Dashboard() {
 
         {s && !loading && (
           <div className="content">
+            <PeriodSummary data={data} clientName={siteName(activeUrl)} />
+
             <div className="kpi-grid">
               <KpiCard label="Organic Clicks" value={fNum(s.clicks)} change={s.change.clicks} />
               <KpiCard label="Impressions" value={fNum(s.impressions)} change={s.change.impressions} />
