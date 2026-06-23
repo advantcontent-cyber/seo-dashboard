@@ -21,7 +21,7 @@ export async function GET() {
       siteMap[site] = (siteMap[site] || 0) + (parseFloat(r.clicks) || 0);
     }
 
-    const BLOCKLIST = ["nomadgreenland.com", "drmiriam.com"];
+    const BLOCKLIST = ["nomadgreenland.com", "drmiriama.com"];
     const sites = Object.entries(siteMap)
       .filter(([url]) => !BLOCKLIST.some(b => url.toLowerCase().includes(b)))
       .map(([url, clicks]) => ({ url, clicks: Math.round(clicks as number) }))
