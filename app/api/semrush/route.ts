@@ -2,15 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 
 const CAMPAIGNS: Record<string, { projectId: string; campaignId: string; name: string; hasTracking: boolean }> = {
   "https://www.sorahotels.com/sorasukhumvit/": { projectId: "28548179", campaignId: "28548179_5012473", name: "Sora Hotels Sukhumvit", hasTracking: true },
+  "https://www.sorahotels.com/": { projectId: "28548179", campaignId: "28548179_5012473", name: "Sora Hotels", hasTracking: true },
+  "https://www.sorahotels.com": { projectId: "28548179", campaignId: "28548179_5012473", name: "Sora Hotels", hasTracking: true },
   "https://khao-yai.intercontinental.com/": { projectId: "28547626", campaignId: "", name: "IC Khao Yai", hasTracking: false },
+  "https://khao-yai.intercontinental.com": { projectId: "28547626", campaignId: "", name: "IC Khao Yai", hasTracking: false },
 };
 
 async function fetchTracking(projectId: string, params: Record<string, string>) {
   const apiKey = process.env.SEMRUSH_API_KEY;
   if (!apiKey) throw new Error("SEMRUSH_API_KEY not configured");
 
-  const p = new URLSearchParams({ key: apiKey, action: "report", "competitors[]": "", ...params });
-  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/?${p}`;
+  // Build query string manually — URLSearchParams drops empty values
+  const base = `key=${apiKey}&action=report&competitors[]=`;
+  const extra = Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
+  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/?${base}&${extra}`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
 
   if (!res.ok) {
@@ -31,7 +36,9 @@ async function fetchTracking(projectId: string, params: Record<string, string>) 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const siteUrl = searchParams.get("site") || "";
-  const campaign = CAMPAIGNS[siteUrl];
+  // Normalize URL for lookup — try exact, then with/without trailing slash
+  const normalizedUrl = siteUrl.endsWith("/") ? siteUrl : siteUrl + "/";
+  const campaign = CAMPAIGNS[siteUrl] || CAMPAIGNS[normalizedUrl] || CAMPAIGNS[siteUrl.replace(/\/$/, "")];
 
   if (!campaign) {
     return NextResponse.json({
