@@ -9,7 +9,7 @@ async function fetchTracking(projectId: string, params: Record<string, string>) 
   const apiKey = process.env.SEMRUSH_API_KEY;
   if (!apiKey) throw new Error("SEMRUSH_API_KEY not configured");
 
-  const p = new URLSearchParams({ key: apiKey, action: "report", ...params });
+  const p = new URLSearchParams({ key: apiKey, action: "report", "competitors[]": "", ...params });
   const url = `https://api.semrush.com/reports/v1/projects/${projectId}/tracking/?${p}`;
   const res = await fetch(url, { next: { revalidate: 3600 } });
 
