@@ -290,6 +290,7 @@ function AIOverview({ siteUrl }: { siteUrl: string }) {
       const res = await fetch(`/api/semrush?site=${encodeURIComponent(siteUrl)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
+      if (json.setupRequired) throw new Error(json.error);
       setData(json);
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
@@ -312,7 +313,12 @@ function AIOverview({ siteUrl }: { siteUrl: string }) {
       </div>
 
       {loading && <div className="ai-loading"><div className="ai-spinner" />Fetching AI Overview data from SEMrush...</div>}
-      {error && <div style={{ color: "var(--rose)", fontSize: 12 }}>⚠ {error}</div>}
+      {error && (
+        <div style={{ background: "#FDF0EF", border: "1px solid #F0C9C6", borderRadius: 8, padding: "14px 16px", fontSize: 13, color: "var(--rose)", lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>⚠ Position Tracking not set up</div>
+          <div style={{ color: "var(--text-muted)" }}>{error}</div>
+        </div>
+      )}
 
       {s && !loading && (
         <>
