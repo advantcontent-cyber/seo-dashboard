@@ -3,11 +3,23 @@ import { NextRequest, NextResponse } from "next/server";
 const BASE = "https://connectors.windsor.ai";
 
 const GA4_PROPERTIES: Record<string, string> = {
+  // IC Khao Yai — various URL formats Windsor might return
   "https://khao-yai.intercontinental.com/": "339641415",
+  "https://khao-yai.intercontinental.com": "339641415",
+  "https://khaoyai.intercontinental.com/": "339641415",
+  "https://khaoyai.intercontinental.com": "339641415",
+  "khaoyai.intercontinental.com": "339641415",
+  "khao-yai.intercontinental.com": "339641415",
+  // Sora Hotels
   "https://www.sorahotels.com/sorasukhumvit/": "484664374",
   "https://www.sorahotels.com/": "484664374",
+  "https://www.sorahotels.com": "484664374",
+  "www.sorahotels.com": "484664374",
+  // Shinta Mani
   "https://shintamani.com/": "476347859",
   "https://www.shintamani.com/": "476347859",
+  "https://shintamani.com": "476347859",
+  "shintamani.com": "476347859",
 };
 
 async function windsor(apiKey: string, fields: string, extra: Record<string, string> = {}) {
@@ -35,8 +47,15 @@ export async function GET(req: NextRequest) {
 
   if (!apiKey) return NextResponse.json({ error: "WINDSOR_API_KEY not configured" }, { status: 500 });
 
-  const normalizedUrl = siteUrl.endsWith("/") ? siteUrl : siteUrl + "/";
-  const propertyId = GA4_PROPERTIES[siteUrl] || GA4_PROPERTIES[normalizedUrl];
+  // Try multiple URL formats to find a match
+  const withSlash = siteUrl.endsWith("/") ? siteUrl : siteUrl + "/";
+  const withoutSlash = siteUrl.replace(/\/$/, "");
+  const withoutProtocol = siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const propertyId = GA4_PROPERTIES[siteUrl]
+    || GA4_PROPERTIES[withSlash]
+    || GA4_PROPERTIES[withoutSlash]
+    || GA4_PROPERTIES[withoutProtocol]
+    || GA4_PROPERTIES[withoutProtocol + "/"];
   if (!propertyId) return NextResponse.json({ error: "No GA4 property configured for this site" }, { status: 404 });
 
   if (!dateFrom || !dateTo) {
